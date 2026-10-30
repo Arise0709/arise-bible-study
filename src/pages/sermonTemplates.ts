@@ -103,7 +103,7 @@ export function sectionsFromTemplate(key: string): SermonSection[] {
   }))
 }
 
-export function newSermon(template: string, folderId?: string): Sermon {
+export function newSermon(template: string, folderId?: string, translation = 'KJV'): Sermon {
   const now = Date.now()
   return {
     id: uid(),
@@ -114,6 +114,7 @@ export function newSermon(template: string, folderId?: string): Sermon {
     audience: '',
     length: template === 'smallgroup' ? '60 minutes' : template === 'lesson' ? '45 minutes' : '35-40 minutes',
     template,
+    translation,
     status: 'draft',
     tags: [],
     folderId,
@@ -140,7 +141,8 @@ const shortTitle = (text: string, fallback: string) => {
  *   sourced material stays cited.
  */
 export async function createSermonFromStudy(study: Study): Promise<string> {
-  const s = newSermon('arise')
+  const tr = study.translation ?? 'KJV'
+  const s = newSermon('arise', undefined, tr)
   const S = study.sections
   const sec = (type: string, title: string, blocks: Block[], level: 1 | 2 = 1): SermonSection => ({ id: uid(), type, title, level, blocks: copy(blocks) })
   const note = (text = ''): Block => ({ id: uid(), kind: 'note', text })
@@ -155,8 +157,8 @@ export async function createSermonFromStudy(study: Study): Promise<string> {
   const opening: Block[] = []
   const ref = parseOsis(study.passage)
   if (ref) {
-    const first = (await getPassage(ref).catch(() => []))[0]
-    if (first) opening.push({ id: uid(), kind: 'scripture', ref: `${first.book}.${first.chapter}.${first.verse}`, text: first.text })
+    const first = (await getPassage(ref, tr).catch(() => []))[0]
+    if (first) opening.push({ id: uid(), kind: 'scripture', ref: `${first.book}.${first.chapter}.${first.verse}`, text: first.text, tr })
   }
   opening.push(...S.context, note())
 

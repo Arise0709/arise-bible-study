@@ -21,7 +21,7 @@ const refLabel = (osis: string) => {
 export function blockToNodes(b: Block): DocNode[] {
   switch (b.kind) {
     case 'scripture':
-      return [{ t: 'quote', text: b.text, cite: `${refLabel(b.ref)} (KJV)` }]
+      return [{ t: 'quote', text: b.text, cite: `${refLabel(b.ref)} (${b.tr ?? 'KJV'})` }]
     case 'source':
       return [{ t: 'note', label: `Source: ${b.citation}`, text: b.text }]
     case 'word':
@@ -41,6 +41,7 @@ export function blockToNodes(b: Block): DocNode[] {
 export function sermonToDoc(s: Sermon, passageText?: string, approach?: string): DocNode[] {
   const out: DocNode[] = [{ t: 'title', text: s.title || 'Untitled' }]
   if (s.passage) out.push({ t: 'meta', label: 'Primary passage', text: refLabel(s.passage) })
+  out.push({ t: 'meta', label: 'Translation', text: s.translation ?? 'KJV' })
   if (s.subtitle) out.push({ t: 'meta', label: 'Secondary title', text: s.subtitle })
   if (s.series) out.push({ t: 'meta', label: 'Series', text: s.series })
   if (s.mainIdea) out.push({ t: 'meta', label: 'Main idea', text: s.mainIdea })
@@ -48,7 +49,7 @@ export function sermonToDoc(s: Sermon, passageText?: string, approach?: string):
   if (s.audience) out.push({ t: 'meta', label: 'Audience', text: s.audience })
   if (s.length) out.push({ t: 'meta', label: 'Estimated length', text: s.length })
   if (approach) out.push({ t: 'meta', label: 'Approach', text: approach })
-  if (s.passage && passageText) out.push({ t: 'quote', text: passageText, cite: `${refLabel(s.passage)} (KJV)` })
+  if (s.passage && passageText) out.push({ t: 'quote', text: passageText, cite: `${refLabel(s.passage)} (${s.translation ?? 'KJV'})` })
   for (const sec of s.sections) {
     out.push({ t: sec.level === 2 ? 'h3' : 'h2', text: sec.title || 'Untitled section' })
     for (const b of sec.blocks) out.push(...blockToNodes(b))
@@ -63,8 +64,9 @@ export function sermonToDoc(s: Sermon, passageText?: string, approach?: string):
 export function studyToDoc(s: Study, passageText?: string): DocNode[] {
   const out: DocNode[] = [{ t: 'title', text: s.title || 'Untitled study' }]
   if (s.passage) out.push({ t: 'meta', label: 'Primary passage', text: refLabel(s.passage) })
+  out.push({ t: 'meta', label: 'Translation', text: s.translation ?? 'KJV' })
   out.push({ t: 'h2', text: 'Passage' })
-  if (passageText) out.push({ t: 'quote', text: passageText, cite: `${refLabel(s.passage)} (KJV)` })
+  if (passageText) out.push({ t: 'quote', text: passageText, cite: `${refLabel(s.passage)} (${s.translation ?? 'KJV'})` })
   for (const sec of WORKSHEET_SECTIONS) {
     out.push({ t: 'h2', text: sec.title })
     const blocks = s.sections[sec.key]

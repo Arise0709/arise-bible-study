@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy, Download, FileText, FolderPlus, GripVertical, MonitorPlay, Plus, Printer, Trash2 } from 'lucide-react'
-import { BlockLegend, BlockList, BlockView } from '../components/Blocks'
+import { BlockLegend, BlockList, BlockView, TranslationSelect, retranslateBlocks } from '../components/Blocks'
 import { Dialog, Empty, ErrorBox, Loading, downloadBlob, slug, timeAgo, toast, useAsync } from '../components/ui'
 import { LinkedText, ScriptureRef } from '../components/Scripture'
 import { getPassage, passageToText } from '../lib/data'
 import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
+import { quoteTr, useStudy } from '../lib/state'
 import { db, recordSession, uid, type Sermon, type SermonSection } from '../db/db'
 import { pdfExport, sermonToDoc, toMarkdown, wordExport } from '../export/doc'
 import { SECTION_TYPES, TEMPLATES, newSermon } from './sermonTemplates'
@@ -31,8 +32,9 @@ export function SermonsPage() {
       (!q || [s.title, s.mainIdea, ...s.tags].join(' ').toLowerCase().includes(q.toLowerCase())),
   )
 
+  const { settings } = useStudy()
   const create = async (template: string) => {
-    const s = newSermon(template, folder !== 'all' && folder !== 'none' ? folder : undefined)
+    const s = newSermon(template, folder !== 'all' && folder !== 'none' ? folder : undefined, quoteTr(settings))
     await db.sermons.add(s)
     nav(`/sermons/${s.id}`)
   }
@@ -143,7 +145,7 @@ export function SermonEditorPage() {
 async function exportSermon(s: Sermon, kind: 'md' | 'docx' | 'pdf') {
   try {
     const r = parseOsis(s.passage)
-    const text = r ? passageToText(await getPassage(r)) : undefined
+    const text = r ? passageToText(await getPassage(r, s.translation ?? 'KJV')) : undefined
     const approach = TEMPLATES[s.template]?.name
     const doc = sermonToDoc(s, text, s.template === 'blank' ? undefined : approach)
     const name = slug(s.title)
@@ -201,6 +203,21 @@ function SermonEditor({ initial }: { initial: Sermon }) {
     up({ sections: next })
   }
 
+  const [updatingTr, setUpdatingTr] = useState(false)
+  const changeTranslation = async (next: string) => {
+    setUpdatingTr(true)
+    const missing: string[] = []
+    const sections: SermonSection[] = []
+    for (const sec of s.sections) {
+      const r = await retranslateBlocks(sec.blocks, next)
+      missing.push(...r.missing)
+      sections.push({ ...sec, blocks: r.blocks })
+    }
+    up({ translation: next, sections })
+    setUpdatingTr(false)
+    toast(missing.length ? `Updated to ${next}. Not found in ${next}: ${missing.join(', ')}` : `All Scripture in this outline now quotes the ${next}`)
+  }
+
   const setPassage = async () => {
     if (!passageInput.trim()) {
       setPassageErr('')
@@ -209,7 +226,7 @@ function SermonEditor({ initial }: { initial: Sermon }) {
     const r = parseRef(passageInput)
     if (!r) return setPassageErr('Use a form like Romans 8:28-39.')
     try {
-      await getPassage(r)
+      await getPassage(r, s.translation ?? 'KJV')
       setPassageErr('')
       up({ passage: toOsis(r) })
     } catch (e) {
@@ -255,6 +272,10 @@ function SermonEditor({ initial }: { initial: Sermon }) {
               <option value="ready">Ready to teach</option>
             </select>
           </label>
+          <div>
+            <TranslationSelect id="sermon-tr" label="Quote Scripture in" value={s.translation ?? 'KJV'} onChange={changeTranslation} />
+            {updatingTr && <span className="muted small">Updating quotes…</span>}
+          </div>
         </div>
         <label className="field">
           <span>Main idea</span>
@@ -346,7 +367,7 @@ function SermonEditor({ initial }: { initial: Sermon }) {
           </header>
           {!sec.collapsed && (
             <div className="section-body">
-              <BlockList blocks={sec.blocks} onChange={(b) => setSection(i, { ...sec, blocks: b })} addKinds={['note', 'scripture']} />
+              <BlockList blocks={sec.blocks} onChange={(b) => setSection(i, { ...sec, blocks: b })} addKinds={['note', 'scripture']} tr={s.translation ?? 'KJV'} />
             </div>
           )}
         </div>
@@ -399,7 +420,7 @@ export function TeachingView() {
   const res = useLiveQuery(() => db.sermons.get(id ?? '').then((s) => ({ s })), [id])
   const s = res?.s
   const passage = s?.passage ? parseOsis(s.passage) : undefined
-  const { data: verses } = useAsync(() => (passage ? getPassage(passage) : Promise.resolve(null)), [s?.passage])
+  const { data: verses } = useAsync(() => (passage ? getPassage(passage, s?.translation ?? 'KJV') : Promise.resolve(null)), [s?.passage, s?.translation])
   const printMode = new URLSearchParams(location.search).has('print')
   const [allOpen, setAllOpen] = useState(true)
   useEffect(() => {
@@ -437,7 +458,7 @@ export function TeachingView() {
       {verses && passage && (
         <blockquote>
           {passageToText(verses)}
-          <span className="cite">{formatRef(passage)} (KJV)</span>
+          <span className="cite">{formatRef(passage)} ({s.translation ?? 'KJV'})</span>
         </blockquote>
       )}
       {sections.map((sec) => (
@@ -451,7 +472,7 @@ export function TeachingView() {
                   <blockquote key={b.id}>
                     {b.text}
                     <span className="cite">
-                      <ScriptureRef r={b.ref} /> (KJV)
+                      <ScriptureRef r={b.ref} /> ({b.tr ?? 'KJV'})
                     </span>
                   </blockquote>
                 ) : b.kind === 'note' ? (

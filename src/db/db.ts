@@ -6,7 +6,7 @@ export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random(
  * Kinds keep Scripture, sourced material and the reader's own words structurally separate.
  */
 export type Block =
-  | { id: string; kind: 'scripture'; ref: string; text: string } // exact KJV, ref is OSIS
+  | { id: string; kind: 'scripture'; ref: string; text: string; tr?: string } // exact text in translation tr (KJV when absent), ref is OSIS
   | { id: string; kind: 'source'; source: string; title: string; text: string; citation: string } // quoted reference work
   | { id: string; kind: 'word'; strongs: string; english: string; ref: string; original: string; gloss: string; note: string }
   | { id: string; kind: 'xref'; from: string; to: string; explanation: string }
@@ -73,6 +73,7 @@ export interface Study {
   id: string
   title: string
   passage: string // OSIS range
+  translation?: string // translation for quotes (KJV when absent)
   sections: Record<WorksheetKey, Block[]>
   tags: string[]
   folderId?: string
@@ -94,6 +95,7 @@ export interface Sermon {
   title: string
   subtitle?: string // secondary title under the main title
   series?: string // e.g. "The Anointing, Part 2 of 3"
+  translation?: string // translation for quotes (KJV when absent)
   passage: string
   mainIdea: string
   objective: string

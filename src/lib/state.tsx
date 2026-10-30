@@ -24,6 +24,7 @@ export interface Settings {
   lineSpacing: string
   translation: string // primary translation in the reader ('KJV' or an id from translations/index.json)
   compareWith: string // second translation shown under each verse, '' for none
+  quoteTranslation: string // translation for new studies and sermons; '' = same as the reading translation
   redLetters: boolean
   showMarginNotes: boolean
   showTagged: boolean
@@ -41,6 +42,7 @@ export const DEFAULTS: Settings = {
   lineSpacing: 'normal',
   translation: 'KJV',
   compareWith: '',
+  quoteTranslation: '',
   redLetters: true,
   showMarginNotes: false,
   showTagged: false,
@@ -141,3 +143,6 @@ export interface StudySink {
 }
 export const StudySinkCtx = createContext<StudySink | null>(null)
 export const useStudySink = () => useContext(StudySinkCtx)
+
+/** The translation new quotes, studies and sermons should use. */
+export const quoteTr = (s: Settings) => s.quoteTranslation || s.translation || 'KJV'

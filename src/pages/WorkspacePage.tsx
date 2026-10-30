@@ -5,12 +5,12 @@ import { Group, Panel, Separator } from 'react-resizable-panels'
 import { BookOpen, Download, FileText, Mic, Plus, Trash2 } from 'lucide-react'
 import { Reader } from '../components/Reader'
 import { ToolsPane } from '../components/ToolsPane'
-import { BlockLegend, BlockList } from '../components/Blocks'
+import { BlockLegend, BlockList, TranslationSelect, retranslateBlocks } from '../components/Blocks'
 import { Dialog, Empty, ErrorBox, Loading, downloadBlob, slug, timeAgo, toast, useAsync, useMediaQuery } from '../components/ui'
 import { LinkedText } from '../components/Scripture'
 import { getPassage, passageToText } from '../lib/data'
 import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
-import { StudySinkCtx, useStudy, type StudySink } from '../lib/state'
+import { StudySinkCtx, quoteTr, useStudy, type StudySink } from '../lib/state'
 import { WORKSHEET_SECTIONS, db, emptyWorksheet, recordSession, uid, type Block, type Study, type WorksheetKey } from '../db/db'
 import { pdfExport, studyToDoc, toMarkdown, wordExport } from '../export/doc'
 import { createSermonFromStudy } from './sermonTemplates'
@@ -20,6 +20,7 @@ export function StudyStart() {
   const [q, setQ] = useState('')
   const [err, setErr] = useState('')
   const recent = useLiveQuery(() => db.studies.orderBy('updatedAt').reverse().limit(8).toArray(), []) ?? []
+  const { settings } = useStudy()
   const start = async () => {
     const r = parseRef(q)
     if (!r) return setErr('Enter a passage such as Romans 5:1-11 or Psalm 23.')
@@ -30,7 +31,7 @@ export function StudyStart() {
     }
     const id = uid()
     const now = Date.now()
-    await db.studies.add({ id, title: `Study of ${formatRef(r)}`, passage: toOsis(r), sections: emptyWorksheet(), tags: [], createdAt: now, updatedAt: now })
+    await db.studies.add({ id, title: `Study of ${formatRef(r)}`, passage: toOsis(r), translation: quoteTr(settings), sections: emptyWorksheet(), tags: [], createdAt: now, updatedAt: now })
     nav(`/study/${id}`)
   }
   return (
@@ -178,7 +179,22 @@ function Workspace({ initial }: { initial: Study }) {
 function Worksheet({ study, update, saved, onGoToPassage }: { study: Study; update: (fn: (s: Study) => Study) => void; saved: string; onGoToPassage: () => void }) {
   const nav = useNavigate()
   const passage = parseOsis(study.passage)
-  const { data: verses, error } = useAsync(() => (passage ? getPassage(passage) : Promise.reject(new Error('No passage set.'))), [study.passage])
+  const tr = study.translation ?? 'KJV'
+  const { data: verses, error } = useAsync(() => (passage ? getPassage(passage, tr) : Promise.reject(new Error('No passage set.'))), [study.passage, tr])
+  const [updating, setUpdating] = useState(false)
+  const changeTranslation = async (next: string) => {
+    setUpdating(true)
+    const missing: string[] = []
+    const sections = { ...study.sections }
+    for (const k of Object.keys(sections) as WorksheetKey[]) {
+      const r = await retranslateBlocks(sections[k], next)
+      sections[k] = r.blocks
+      missing.push(...r.missing)
+    }
+    update((s) => ({ ...s, translation: next, sections }))
+    setUpdating(false)
+    toast(missing.length ? `Updated to ${next}. Not found in ${next}: ${missing.join(', ')}` : `All Scripture in this study now quotes the ${next}`)
+  }
   const [editPassage, setEditPassage] = useState(false)
   const [pq, setPq] = useState(passage ? formatRef(passage) : '')
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -214,6 +230,12 @@ function Worksheet({ study, update, saved, onGoToPassage }: { study: Study; upda
             <input value={study.tags.join(', ')} onChange={(e) => update((s) => ({ ...s, tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean) }))} placeholder="faith, Romans series" />
           </label>
         </div>
+        <div className="row" style={{ alignItems: 'flex-end', margin: '0 0 8px' }}>
+          <div style={{ minWidth: 220, flex: 1 }}>
+            <TranslationSelect id="study-tr" label="Quote Scripture in" value={tr} onChange={changeTranslation} />
+          </div>
+          {updating && <span className="muted small">Updating quotes…</span>}
+        </div>
         <BlockLegend />
 
         <section className="ws-section" style={{ marginTop: 16 }}>
@@ -233,7 +255,7 @@ function Worksheet({ study, update, saved, onGoToPassage }: { study: Study; upda
                 const r = parseRef(pq)
                 if (!r) return toast('Enter a reference like Romans 8:28-39')
                 try {
-                  await getPassage(r)
+                  await getPassage(r, tr)
                   update((s) => ({ ...s, passage: toOsis(r) }))
                   setEditPassage(false)
                 } catch (err) {
@@ -248,7 +270,7 @@ function Worksheet({ study, update, saved, onGoToPassage }: { study: Study; upda
           {error && <ErrorBox error={error} />}
           {verses && passage && (
             <div className="block scripture">
-              <div className="block-label">Scripture · {formatRef(passage)} (KJV)</div>
+              <div className="block-label">Scripture · {formatRef(passage)} ({tr})</div>
               <div style={{ maxHeight: 260, overflow: 'auto' }}>
                 {verses.map((v) => (
                   <span key={`${v.chapter}.${v.verse}`}>
@@ -271,6 +293,7 @@ function Worksheet({ study, update, saved, onGoToPassage }: { study: Study; upda
               onChange={(b) => update((s) => ({ ...s, sections: { ...s.sections, [sec.key]: b } }))}
               addKinds={sec.key === 'crossRefs' ? ['xref', 'note'] : ['note', 'scripture']}
               defaultXrefFrom={study.passage}
+              tr={tr}
               emptyHint={
                 sec.key === 'wordStudy'
                   ? 'Click a word in the Scripture panel, then “Add to study” on its Strong\'s entry.'

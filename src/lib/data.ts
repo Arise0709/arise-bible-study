@@ -107,16 +107,24 @@ export interface PassageVerse {
   text: string
 }
 
-/** Exact KJV text for a reference, verse by verse. */
-export async function getPassage(ref: Ref): Promise<PassageVerse[]> {
+/** Exact text for a reference, verse by verse, in the KJV or another translation. */
+export async function getPassage(ref: Ref, tr = 'KJV'): Promise<PassageVerse[]> {
   await loadBookIndex()
-  const book = await loadBook(ref.book)
   const out: PassageVerse[] = []
-  for (const k of expandRef(ref)) {
-    const v = book.chapters[k.chapter - 1]?.verses.find((x) => x.v === k.verse)
-    if (v) out.push({ ...k, text: verseText(v) })
+  if (tr && tr !== 'KJV') {
+    const chapters = await loadTranslationBook(tr, ref.book)
+    for (const k of expandRef(ref)) {
+      const t = chapters[k.chapter - 1]?.[k.verse - 1]
+      if (t) out.push({ ...k, text: t })
+    }
+  } else {
+    const book = await loadBook(ref.book)
+    for (const k of expandRef(ref)) {
+      const v = book.chapters[k.chapter - 1]?.verses.find((x) => x.v === k.verse)
+      if (v) out.push({ ...k, text: verseText(v) })
+    }
   }
-  if (!out.length) throw new DataError(formatRef(ref), 'That passage does not exist in the KJV.')
+  if (!out.length) throw new DataError(formatRef(ref), `That passage does not exist in the ${tr || 'KJV'}.`)
   return out
 }
 

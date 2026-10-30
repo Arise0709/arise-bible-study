@@ -2,9 +2,9 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import { Bookmark, BookOpen, ChevronLeft, ChevronRight, Copy, Highlighter, Link2, NotebookPen, Plus, StickyNote, X } from 'lucide-react'
-import { FLAG_ADDED, FLAG_DIVINE, FLAG_RED, loadBook, loadBookIndex, loadTranslationBook, loadTranslationIndex, parseWord, segText, verseText, type Book, type Segment, type Verse } from '../lib/data'
+import { FLAG_ADDED, FLAG_DIVINE, FLAG_RED, getPassage, passageToText, loadBook, loadBookIndex, loadTranslationBook, loadTranslationIndex, parseWord, segText, verseText, type Book, type Segment, type Verse } from '../lib/data'
 import { BOOKS, BOOK_BY_ID, BOOK_INDEX, formatRef, toOsis, type Ref } from '../lib/refs'
-import { useStudy, useStudySink } from '../lib/state'
+import { quoteTr, useStudy, useStudySink } from '../lib/state'
 import { db, emptyWorksheet, uid, type VerseNote } from '../db/db'
 import { Dialog, ErrorBox, Loading, toast, useAsync } from './ui'
 import { LinkedText } from './Scripture'
@@ -149,15 +149,20 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
     if (!selRef) return
     const id = uid()
     const now = Date.now()
-    await db.studies.add({ id, title: `Study of ${formatRef(selRef)}`, passage: toOsis(selRef), sections: emptyWorksheet(), tags: [], createdAt: now, updatedAt: now })
+    await db.studies.add({ id, title: `Study of ${formatRef(selRef)}`, passage: toOsis(selRef), translation: quoteTr(settings), sections: emptyWorksheet(), tags: [], createdAt: now, updatedAt: now })
     nav(`/study/${id}`)
   }
 
-  const addToStudy = () => {
+  const addToStudy = async () => {
     if (!sink || !selRef) return
-    const text = selectedVerses.length === 1 ? verseText(selectedVerses[0]) : selectedVerses.map((v) => `${v.v} ${verseText(v)}`).join(' ')
-    sink.add('observation', { id: uid(), kind: 'scripture', ref: toOsis(selRef), text })
-    toast(`Added ${formatRef(selRef)} to Observation`)
+    const tr = sink.study.translation ?? 'KJV'
+    try {
+      const text = passageToText(await getPassage(selRef, tr))
+      sink.add('observation', { id: uid(), kind: 'scripture', ref: toOsis(selRef), text, tr })
+      toast(`Added ${formatRef(selRef)} (${tr}) to Observation`)
+    } catch (e) {
+      toast((e as Error).message)
+    }
   }
 
   return (

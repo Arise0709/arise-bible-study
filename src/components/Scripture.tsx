@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { findRefs, formatRef, parseOsis, refPath, type Ref } from '../lib/refs'
 import { getPassage, passageToText } from '../lib/data'
 import { useAsync } from './ui'
+import { useStudy } from '../lib/state'
 
 /** A clickable Scripture reference. Opens the passage in the Bible reader; hover/focus shows the text. */
 export function ScriptureRef({ r, children, preview = true }: { r: Ref | string; children?: ReactNode; preview?: boolean }) {
@@ -31,7 +32,9 @@ export function ScriptureRef({ r, children, preview = true }: { r: Ref | string;
 }
 
 function RefPreview({ r }: { r: Ref }) {
-  const { data, error } = useAsync(() => getPassage(r), [JSON.stringify(r)])
+  const { settings } = useStudy()
+  const tr = settings.translation || 'KJV'
+  const { data, error } = useAsync(() => getPassage(r, tr).catch(() => getPassage(r)), [JSON.stringify(r), tr])
   return (
     <span
       role="tooltip"
@@ -56,7 +59,7 @@ function RefPreview({ r }: { r: Ref }) {
         fontWeight: 400,
       }}
     >
-      <strong style={{ fontFamily: 'var(--ui-font)' }}>{formatRef(r)} (KJV)</strong>
+      <strong style={{ fontFamily: 'var(--ui-font)' }}>{formatRef(r)} ({tr})</strong>
       <br />
       {error ? error.message : data ? clip(passageToText(data), 420) : 'Loading…'}
     </span>

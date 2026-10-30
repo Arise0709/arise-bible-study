@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, BookOpen, HelpCircle, Link2, NotebookPen, Sparkles, Trash2 } from 'lucide-react'
-import { getPassage, passageToText } from '../lib/data'
+import { getPassage, loadTranslationIndex, passageToText } from '../lib/data'
 import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
 import { uid, type Block } from '../db/db'
 import { Dialog, useAsync } from './ui'
 import { DetectedRefs, LinkedText, ScriptureRef } from './Scripture'
 
 export const BLOCK_LABEL: Record<Block['kind'], string> = {
-  scripture: 'Scripture (KJV)',
+  scripture: 'Scripture',
   source: 'Source',
   word: "Word study (Strong's)",
   xref: 'Cross-reference',
@@ -33,9 +33,10 @@ interface ListProps {
   defaultXrefFrom?: string
   readOnly?: boolean
   emptyHint?: string
+  tr?: string // translation for newly inserted Scripture
 }
 
-export function BlockList({ blocks, onChange, addKinds = ['note', 'scripture'], defaultXrefFrom, readOnly, emptyHint }: ListProps) {
+export function BlockList({ blocks, onChange, addKinds = ['note', 'scripture'], defaultXrefFrom, readOnly, emptyHint, tr = 'KJV' }: ListProps) {
   const [scriptureOpen, setScriptureOpen] = useState<null | 'scripture' | 'xref'>(null)
   const update = (i: number, b: Block) => onChange(blocks.map((x, j) => (j === i ? b : x)))
   const move = (i: number, d: number) => {
@@ -50,7 +51,7 @@ export function BlockList({ blocks, onChange, addKinds = ['note', 'scripture'], 
     <div>
       {!blocks.length && emptyHint && <div className="muted small" style={{ padding: '4px 0' }}>{emptyHint}</div>}
       {blocks.map((b, i) => (
-        <BlockView key={b.id} block={b} onChange={(nb) => update(i, nb)} readOnly={readOnly}
+        <BlockView key={b.id} block={b} onChange={(nb) => update(i, nb)} readOnly={readOnly} tr={tr}
           tools={
             readOnly ? null : (
               <div className="block-tools">
@@ -88,12 +89,13 @@ export function BlockList({ blocks, onChange, addKinds = ['note', 'scripture'], 
         </div>
       )}
       <InsertScriptureDialog
+        tr={tr}
         open={!!scriptureOpen}
-        title={scriptureOpen === 'xref' ? 'Add a cross-reference' : 'Insert Scripture (exact KJV text)'}
+        title={scriptureOpen === 'xref' ? 'Add a cross-reference' : `Insert Scripture (exact ${tr} text)`}
         onClose={() => setScriptureOpen(null)}
         onInsert={(osis, text) => {
           if (scriptureOpen === 'xref') onChange([...blocks, { id: uid(), kind: 'xref', from: defaultXrefFrom ?? '', to: osis, explanation: '' }])
-          else onChange([...blocks, { id: uid(), kind: 'scripture', ref: osis, text }])
+          else onChange([...blocks, { id: uid(), kind: 'scripture', ref: osis, text, tr }])
           setScriptureOpen(null)
         }}
       />
@@ -101,13 +103,13 @@ export function BlockList({ blocks, onChange, addKinds = ['note', 'scripture'], 
   )
 }
 
-export function BlockView({ block: b, onChange, tools, readOnly }: { block: Block; onChange: (b: Block) => void; tools?: React.ReactNode; readOnly?: boolean }) {
+export function BlockView({ block: b, onChange, tools, readOnly, tr = 'KJV' }: { block: Block; onChange: (b: Block) => void; tools?: React.ReactNode; readOnly?: boolean; tr?: string }) {
   switch (b.kind) {
     case 'scripture':
       return (
         <div className="block scripture">
           <div className="block-label">
-            <BookOpen size={13} aria-hidden /> Scripture · <ScriptureRef r={b.ref} /> (KJV) {tools}
+            <BookOpen size={13} aria-hidden /> Scripture · <ScriptureRef r={b.ref} /> ({b.tr ?? 'KJV'}) {tools}
           </div>
           <blockquote style={{ margin: 0 }}>{b.text}</blockquote>
         </div>
@@ -145,7 +147,7 @@ export function BlockView({ block: b, onChange, tools, readOnly }: { block: Bloc
         </div>
       )
     case 'xref':
-      return <XrefBlock b={b} onChange={onChange} tools={tools} readOnly={readOnly} />
+      return <XrefBlock b={b} onChange={onChange} tools={tools} readOnly={readOnly} tr={tr} />
     case 'note':
       return (
         <div className={`block note ${b.uncertain ? 'uncertain' : ''}`}>
@@ -200,13 +202,13 @@ export function BlockView({ block: b, onChange, tools, readOnly }: { block: Bloc
   }
 }
 
-function XrefBlock({ b, onChange, tools, readOnly }: { b: Extract<Block, { kind: 'xref' }>; onChange: (b: Block) => void; tools?: React.ReactNode; readOnly?: boolean }) {
+function XrefBlock({ b, onChange, tools, readOnly, tr }: { b: Extract<Block, { kind: 'xref' }>; onChange: (b: Block) => void; tools?: React.ReactNode; readOnly?: boolean; tr: string }) {
   const r = parseOsis(b.to)
-  const { data } = useAsync(() => (r ? getPassage(r).then(passageToText) : Promise.resolve('')), [b.to])
+  const { data } = useAsync(() => (r ? getPassage(r, tr).then(passageToText) : Promise.resolve('')), [b.to, tr])
   return (
     <div className="block xref">
       <div className="block-label">
-        Cross-reference · {b.from && parseOsis(b.from) && (<><ScriptureRef r={b.from} /> →</>)} <ScriptureRef r={b.to} /> {tools}
+        Cross-reference · {b.from && parseOsis(b.from) && (<><ScriptureRef r={b.from} /> →</>)} <ScriptureRef r={b.to} /> ({tr}) {tools}
       </div>
       <div style={{ fontFamily: 'var(--scripture-font)' }} className="small">{data}</div>
       <div className="block note" style={{ marginTop: 8 }}>
@@ -221,10 +223,10 @@ function XrefBlock({ b, onChange, tools, readOnly }: { b: Extract<Block, { kind:
   )
 }
 
-export function InsertScriptureDialog({ open, title, onClose, onInsert }: { open: boolean; title: string; onClose: () => void; onInsert: (osis: string, text: string) => void }) {
+export function InsertScriptureDialog({ open, title, onClose, onInsert, tr = 'KJV' }: { open: boolean; title: string; onClose: () => void; onInsert: (osis: string, text: string) => void; tr?: string }) {
   const [q, setQ] = useState('')
   const parsed = parseRef(q)
-  const { data, error } = useAsync(() => (parsed ? getPassage(parsed) : Promise.resolve(null)), [parsed ? toOsis(parsed) : ''])
+  const { data, error } = useAsync(() => (parsed ? getPassage(parsed, tr) : Promise.resolve(null)), [parsed ? toOsis(parsed) : '', tr])
   return (
     <Dialog open={open} onClose={onClose} title={title}>
       <div className="stack">
@@ -236,7 +238,7 @@ export function InsertScriptureDialog({ open, title, onClose, onInsert }: { open
         {error && <div className="notice error small">{error.message}</div>}
         {parsed && data && (
           <div className="block scripture">
-            <div className="block-label">{formatRef(parsed)} (KJV)</div>
+            <div className="block-label">{formatRef(parsed)} ({tr})</div>
             <div style={{ maxHeight: 220, overflow: 'auto' }}>{passageToText(data)}</div>
           </div>
         )}
@@ -249,5 +251,42 @@ export function InsertScriptureDialog({ open, title, onClose, onInsert }: { open
         </div>
       </div>
     </Dialog>
+  )
+}
+
+/** Re-fetches every Scripture block's text in another translation. Blocks that cannot be found keep their text. */
+export async function retranslateBlocks(blocks: Block[], tr: string): Promise<{ blocks: Block[]; missing: string[] }> {
+  const missing: string[] = []
+  const out: Block[] = []
+  for (const b of blocks) {
+    if (b.kind !== 'scripture' || (b.tr ?? 'KJV') === tr) {
+      out.push(b)
+      continue
+    }
+    const r = parseOsis(b.ref)
+    try {
+      if (!r) throw new Error()
+      out.push({ ...b, text: passageToText(await getPassage(r, tr)), tr })
+    } catch {
+      missing.push(r ? formatRef(r) : b.ref)
+      out.push(b)
+    }
+  }
+  return { blocks: out, missing }
+}
+
+/** Dropdown of translations available for quoting. */
+export function TranslationSelect({ value, onChange, id, label }: { value: string; onChange: (v: string) => void; id: string; label: string }) {
+  const { data } = useAsync(() => loadTranslationIndex().catch(() => []), [])
+  return (
+    <label className="field" htmlFor={id}>
+      <span>{label}</span>
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="KJV">King James Version (KJV)</option>
+        {data?.map((t) => (
+          <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
+        ))}
+      </select>
+    </label>
   )
 }

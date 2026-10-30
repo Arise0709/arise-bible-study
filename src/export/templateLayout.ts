@@ -72,7 +72,8 @@ export function layoutTemplate(doc: DocNode[], info: TemplateInfo): TemplateLayo
     if (n.t === 'meta') meta.set(n.label, n.text)
   }
   const passage = meta.get('Primary passage') ?? ''
-  const supporting = [...new Set(doc.filter((n): n is Extract<DocNode, { t: 'quote' }> => n.t === 'quote').map((n) => n.cite.replace(/\s*\(KJV\)$/, '')))].filter(
+  const tr = meta.get('Translation') ?? 'KJV'
+  const supporting = [...new Set(doc.filter((n): n is Extract<DocNode, { t: 'quote' }> => n.t === 'quote').map((n) => n.cite.replace(/\s*\([A-Z0-9]+\)$/, '')))].filter(
     (c) => c !== passage,
   )
 
@@ -81,7 +82,7 @@ export function layoutTemplate(doc: DocNode[], info: TemplateInfo): TemplateLayo
   if (subtitle) b.push({ k: 'subtitle', text: subtitle })
   if (passage || supporting.length) b.push({ k: 'refs', text: [passage, ...supporting.slice(0, 3)].filter(Boolean).join('  |  ') })
   b.push({ k: 'divider' })
-  const textLine = [passage && `Text: ${passage} (KJV)`, supporting.length ? `Supporting: ${supporting.join(', ')}` : ''].filter(Boolean).join('  |  ')
+  const textLine = [passage && `Text: ${passage} (${tr})`, supporting.length ? `Supporting: ${supporting.join(', ')}` : ''].filter(Boolean).join('  |  ')
   if (textLine) b.push({ k: 'body', text: textLine })
   const detailLine = [
     meta.get('Audience') && `Audience: ${meta.get('Audience')}`,
@@ -112,7 +113,7 @@ export function layoutTemplate(doc: DocNode[], info: TemplateInfo): TemplateLayo
         b.push(...textToBlocks(n.text))
         break
       case 'quote':
-        b.push({ k: 'scripture', text: n.text, cite: /\(KJV\)$/.test(n.cite) ? n.cite : `${n.cite} (KJV)` })
+        b.push({ k: 'scripture', text: n.text, cite: /\([A-Z0-9]+\)$/.test(n.cite) ? n.cite : `${n.cite} (${tr})` })
         break
       case 'note':
         b.push({ k: 'note', label: n.label, text: n.text.replace(/\n+/g, ' ') })
@@ -127,7 +128,7 @@ export function layoutTemplate(doc: DocNode[], info: TemplateInfo): TemplateLayo
     title,
     passage,
     headerTitle: title.toUpperCase(),
-    headerRef: passage ? `${passage} | KJV` : 'KJV',
+    headerRef: passage ? `${passage} | ${tr}` : tr,
     footer: `${info.kind}  |  ${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${d.getFullYear()}`,
   }
 }

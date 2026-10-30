@@ -40,14 +40,15 @@ function blockText(b: Block): string {
   }
 }
 
-export async function buildMaterials(study: Study): Promise<{ text: string; verses: Map<string, string>; strongs: Set<string> }> {
+export async function buildMaterials(study: Study): Promise<{ text: string; verses: Map<string, string>; strongs: Set<string>; tr: string }> {
   const verses = new Map<string, string>()
   const strongs = new Set<string>()
   const lines: string[] = []
+  const tr = study.translation ?? 'KJV'
   const passage = parseOsis(study.passage)
   if (passage) {
-    const vs = await getPassage(passage)
-    lines.push(`PASSAGE ${formatRef(passage)} (KJV):`)
+    const vs = await getPassage(passage, tr)
+    lines.push(`PASSAGE ${formatRef(passage)} (${tr}):`)
     for (const v of vs) {
       verses.set(`${v.book}.${v.chapter}.${v.verse}`, v.text)
       lines.push(`${v.book}.${v.chapter}.${v.verse} ${v.text}`)
@@ -66,7 +67,7 @@ export async function buildMaterials(study: Study): Promise<{ text: string; vers
   for (const r of extraRefs) {
     const ref = parseOsis(r)
     if (!ref) continue
-    const vs = await getPassage(ref).catch(() => [])
+    const vs = await getPassage(ref, tr).catch(() => [])
     if (vs.length > 40) continue
     for (const v of vs) {
       const k = `${v.book}.${v.chapter}.${v.verse}`
@@ -88,7 +89,7 @@ export async function buildMaterials(study: Study): Promise<{ text: string; vers
     const parts = study.sections[s.key].map(blockText).filter(Boolean)
     if (parts.length) lines.push(`## ${s.title}`, ...parts)
   }
-  return { text: lines.join('\n'), verses, strongs }
+  return { text: lines.join('\n'), verses, strongs, tr }
 }
 
 export async function aiConfigured(): Promise<boolean> {
@@ -117,7 +118,7 @@ export async function runAssistant(task: AiTask, study: Study): Promise<Extract<
   const r = j.result as AiResult
   const warnings: string[] = []
 
-  // 1. Every quotation must match the KJV text exactly (ignoring punctuation and case).
+  // 1. Every quotation must match the study translation exactly (ignoring punctuation and case).
   const quoteLines: string[] = []
   for (const q of r.quotes ?? []) {
     const ref = parseOsis(q.ref)
@@ -125,13 +126,13 @@ export async function runAssistant(task: AiTask, study: Study): Promise<Extract<
       warnings.push(`Removed a quotation with an unreadable reference (“${q.ref}”).`)
       continue
     }
-    const vs = await getPassage(ref).catch(() => [])
-    const kjv = norm(passageToText(vs).replace(/\b\d+\s/g, ' '))
-    if (!vs.length || !kjv.includes(norm(q.text.replace(/\.\.\.|…/g, ' ')))) {
-      warnings.push(`Removed a quotation attributed to ${formatRef(ref)} because it does not match the KJV text.`)
+    const vs = await getPassage(ref, m.tr).catch(() => [])
+    const exact = norm(passageToText(vs).replace(/\b\d+\s/g, ' '))
+    if (!vs.length || !exact.includes(norm(q.text.replace(/\.\.\.|…/g, ' ')))) {
+      warnings.push(`Removed a quotation attributed to ${formatRef(ref)} because it does not match the ${m.tr} text.`)
       continue
     }
-    quoteLines.push(`“${q.text}” (${formatRef(ref)}, KJV)`)
+    quoteLines.push(`“${q.text}” (${formatRef(ref)}, ${m.tr})`)
   }
 
   // 2. Strong's numbers must exist and come from the study.

@@ -20,7 +20,7 @@ The core workflow:
 - **Saved Studies:** your studies, verse notes, bookmarks, and recent places, with "pick up where you left off".
 - **Optional AI assistant:** off by default. See below.
 
-**Settings → Appearance:** Daylight, Dark, or match your device; six color themes (including Arise gold); warm, white, or sepia pages; seven Bible fonts and four app fonts; text size and line spacing, with a live preview. **Settings → Bible translations:** read in the KJV (with Strong's) or BSB, NHEB, ASV, YLT, Webster 1833, BBE, or Geneva 1599, and show a second translation under each verse to compare.
+**Settings → Appearance:** Daylight, Dark, or match your device; six color themes (including Arise gold); warm, white, or sepia pages; seven Bible fonts and four app fonts; text size and line spacing, with a live preview. **Settings → Bible translations:** read in the KJV (with Strong's) or BSB, NHEB, ASV, YLT, Webster 1833, BBE, or Geneva 1599, and show a second translation under each verse to compare. Studies and sermons quote Scripture in your chosen translation (Settings → Quote Scripture in), each remembers its translation, and the editor can switch every quote at once.
 
 Also: adjustable text size, keyboard navigation (`/` search, `[` `]` chapters, `?` help), and layouts for desktop, tablet, and phone.
 

@@ -629,7 +629,7 @@ function TranslationSettings() {
       <h2 id="tr-h" style={{ margin: 0 }}>Bible translations</h2>
       <p className="small" style={{ margin: 0 }}>
         Choose what the Bible reader shows. The KJV carries the Strong's word tagging, so word study, italics, and margin notes use the KJV.
-        Other translations are for reading and comparing. Copy uses the translation you are reading; studies and sermons quote the KJV.
+        New studies and sermons quote Scripture in the translation you pick below, and each one remembers its translation.
       </p>
       {loading && <Loading />}
       {error && <ErrorBox error={error} />}
@@ -642,6 +642,16 @@ function TranslationSettings() {
                 <option value="KJV">King James Version (KJV) with Strong's</option>
                 {data.map((t) => (
                   <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Quote Scripture in (new studies and sermons)</span>
+              <select value={settings.quoteTranslation} onChange={(e) => updateSettings({ quoteTranslation: e.target.value })}>
+                <option value="">Same as my reading translation ({settings.translation})</option>
+                <option value="KJV">Always King James Version (KJV)</option>
+                {data.map((t) => (
+                  <option key={t.id} value={t.id}>Always {t.name} ({t.id})</option>
                 ))}
               </select>
             </label>
