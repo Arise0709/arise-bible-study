@@ -103,6 +103,9 @@ export function WordPanel() {
     .filter(Boolean)
     .join(' … ')
   const wordCount = english.replace('…', ' ').trim().split(/\s+/).length
+  // Grammar words (the Greek article, the Hebrew object marker) go after the main word, in compact form.
+  const mainIds = info.strongs.filter((id) => !MINOR[id])
+  const minorIds = info.strongs.filter((id) => MINOR[id])
 
   if (!info.strongs.length) {
     return (
@@ -122,8 +125,9 @@ export function WordPanel() {
       <EnglishHeader english={english} refText={formatRef(ref)} />
       {info.strongs.length > 1 && (
         <div className="notice info small">
-          This English phrase stands for <strong>{info.strongs.length} original words</strong> together ({info.strongs.join(', ')}). Each one is
-          shown below. Small words such as the article or a grammatical marker are often absorbed into the English phrase.
+          {mainIds.length && minorIds.length
+            ? <>The main word here is <strong>{mainIds.join(', ')}</strong>. The phrase also includes {minorIds.map(minorLabel).join(' and ')}, which the KJV folds into the English.</>
+            : <>This English phrase stands for <strong>{info.strongs.length} original words</strong> together ({info.strongs.join(', ')}). Each one is shown below.</>}
         </div>
       )}
       {info.strongs.length === 1 && wordCount > 1 && (
@@ -133,21 +137,36 @@ export function WordPanel() {
             : `These ${wordCount} English words translate one original word. Prepositions, articles, or verb endings in Hebrew and Greek often need several English words.`}
         </div>
       )}
-      {info.strongs.map((id, k) => (
+      {(mainIds.length ? mainIds : minorIds).map((id) => (
         <StrongsCard
-          key={id + k}
+          key={id}
           id={id}
-          morph={info.morph[k]}
-          tr={info.tr.split(' ')[k]}
+          morph={info.morph[info.strongs.indexOf(id)]}
+          tr={info.tr.split(' ')[info.strongs.indexOf(id)]}
           occurrence={{ ref: toOsis(ref), english, verseText: verseText(verse) }}
           onOpen={(rid) => setStack([rid])}
         />
       ))}
+      {mainIds.length > 0 &&
+        minorIds.map((id) => (
+          <div key={id} className="row small" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+            <span className="badge source">Strong's {id}</span>
+            <span>{minorLabel(id)}</span>
+            <span className="spacer" />
+            <button className="btn sm" onClick={() => setStack([id])}>Full entry</button>
+          </div>
+        ))}
       {lookupButtons}
       <ContextNote />
     </div>
   )
 }
+
+const MINOR: Record<string, string> = {
+  G3588: 'ὁ (G3588), the Greek article "the"',
+  H853: 'אֵת (H853), a Hebrew marker that points to the object of the verb and is usually not translated',
+}
+const minorLabel = (id: string) => MINOR[id] ?? id
 
 function cleanWord(s: string) {
   const words = s.replace(/[^A-Za-z' ]/g, ' ').trim().split(/\s+/)
