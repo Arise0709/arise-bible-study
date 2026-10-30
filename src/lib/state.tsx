@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getSetting, setSetting } from '../db/db'
 import { applyAppearance } from './appearance'
+import { setErrorReporting } from './errorReport'
 
 export interface WordSelection {
   book: string
@@ -29,6 +30,7 @@ export interface Settings {
   showMarginNotes: boolean
   showTagged: boolean
   aiEnabled: boolean
+  errorReports: boolean // send anonymous crash reports (no study content)
 }
 
 export const DEFAULTS: Settings = {
@@ -47,6 +49,7 @@ export const DEFAULTS: Settings = {
   showMarginNotes: false,
   showTagged: false,
   aiEnabled: false,
+  errorReports: true,
 }
 
 interface Ctx {
@@ -92,6 +95,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [settings.theme, settings.readerSize, settings.uiSize, settings.accent, settings.tone, settings.scriptureFont, settings.uiFont, settings.lineSpacing],
   )
+
+  useEffect(() => setErrorReporting(settings.errorReports), [settings.errorReports])
 
   const updateSettings = useCallback((p: Partial<Settings>) => {
     setSettings((cur) => {

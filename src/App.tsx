@@ -7,6 +7,7 @@ import { loadBookIndex } from './lib/data'
 import { Dialog, ToastHost } from './components/ui'
 import { BackupReminder } from './components/DataSafety'
 import { autoRequestPersistence } from './lib/dataSafety'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { BiblePage } from './pages/BiblePage'
 import { StudyStart, WorkspacePage } from './pages/WorkspacePage'
 import { SermonEditorPage, SermonsPage, TeachingView } from './pages/SermonPages'
@@ -120,6 +121,7 @@ function Shell() {
       )}
       {!teaching && <BackupReminder />}
       <main id="main" className="content">
+        <ErrorBoundary key={loc.pathname}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/bible" element={<BibleRedirect />} />
@@ -138,6 +140,7 @@ function Shell() {
           <Route path="/sources" element={<SourcesPage />} />
           <Route path="*" element={<div className="page"><h1>Page not found</h1><p><NavLink to="/bible">Open the Bible</NavLink></p></div>} />
         </Routes>
+        </ErrorBoundary>
       </main>
       {!teaching && (
         <nav className="bottomnav no-print" aria-label="Main">

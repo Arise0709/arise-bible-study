@@ -69,14 +69,27 @@ Open http://localhost:5173.
 ### Turning on the AI assistant (optional)
 
 1. In the Vercel project, open **Settings → Environment Variables** and add `ANTHROPIC_API_KEY`.
-2. Redeploy.
-3. In the app, open **Settings** and switch on the AI assistant. An **AI** tab appears in the Study Workspace.
+2. Add `AI_ACCESS_CODE`, a private passphrase of your choosing. Without it the assistant stays locked, so strangers cannot run up your bill.
+3. Redeploy.
+4. In the app, open **Settings**, switch on the AI assistant, and enter the access code. An **AI** tab appears in the Study Workspace.
+
+Optional limits (enforced on the server):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `AI_LIMIT_PER_MINUTE` | 6 | Requests per person per minute |
+| `AI_LIMIT_PER_DAY` | 60 | Requests for the whole site per day |
+| `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (or Vercel KV's `KV_REST_API_URL` and `KV_REST_API_TOKEN`) | not set | Shares the counters across all server instances. Without them, each instance counts on its own. |
+
+Ten wrong access codes in an hour lock that visitor out for the hour. Also set a monthly spend limit in the Anthropic Console as a final safety net.
 
 The key stays on the server (`api/assist.ts`). The assistant only sees the study you send it (the passage text, your word studies, and your notes). It can organize observations, suggest study questions, summarize your notes, or draft an outline. Before anything is shown, the app checks every quotation against the KJV text, every Strong's number against the lexicon, and every citation against your study materials. Quotations that do not match are removed, and anything questionable is flagged. All output is labeled as an AI draft.
 
 ## Your data
 
-Notes, highlights, bookmarks, studies, sermons, and dictionary entries are stored in the browser (IndexedDB) on each device. Use **Settings → Download backup** regularly, and **Restore from backup** to move your work to another device or browser.
+Notes, highlights, bookmarks, studies, sermons, and dictionary entries are stored in the browser (IndexedDB) on each device. Use **Settings → Download backup** regularly, and **Restore from backup** to move your work to another device or browser. Restoring shows a preview first and lets you merge (nothing deleted) or replace (with a safety copy downloaded first).
+
+If something breaks, the app sends an anonymous error report (message, code location, page name, browser type; never your content) to `/api/log-error`, which writes it to the Vercel function logs. Turn this off in **Settings → Your data**.
 
 ## Tests
 

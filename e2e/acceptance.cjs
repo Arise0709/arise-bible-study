@@ -491,6 +491,30 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     await r.close()
   }
 
+  console.log('17. Privacy-conscious error reporting (Kaizen M6)')
+  {
+    const e = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const q = await e.newPage()
+    const reports = []
+    await q.route('**/api/log-error', async (route) => { reports.push(route.request().postData()); await route.fulfill({ status: 204 }) })
+    const boom = () => q.evaluate(() => setTimeout(() => { throw new Error('Failed on "Blessed are the poor in spirit: for theirs is" for me@example.com') }))
+    await q.goto(BASE + '/bible/Matt/5', { waitUntil: 'networkidle' })
+    await boom()
+    await q.waitForTimeout(800)
+    const rep = reports[0] ? JSON.parse(reports[0]) : {}
+    check('an uncaught error sends one report', reports.length === 1, String(reports.length))
+    check('the report has no quoted text or email', rep.message && !/Blessed|example\.com/.test(reports[0]), reports[0])
+    check('the report has only the expected fields', JSON.stringify(Object.keys(rep).sort()) === JSON.stringify(['browser', 'build', 'kind', 'message', 'mobile', 'path', 'stack']), Object.keys(rep).join(','))
+    await q.goto(BASE + '/settings', { waitUntil: 'networkidle' })
+    await q.getByLabel('Send anonymous error reports').uncheck()
+    await q.goto(BASE + '/bible/Matt/5', { waitUntil: 'networkidle' })
+    await q.waitForTimeout(300)
+    await boom()
+    await q.waitForTimeout(800)
+    check('turning reports off in Settings stops them', reports.length === 1, String(reports.length))
+    await e.close()
+  }
+
   check('no uncaught page errors', errors.length === 0, errors.join(' | '))
   await browser.close()
   console.log(`\n${passed} passed, ${failures.length} failed`)

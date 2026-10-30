@@ -383,6 +383,14 @@ export function SettingsPage() {
           </button>
           <RestoreBackup />
         </div>
+        <label className="row">
+          <input type="checkbox" checked={settings.errorReports} onChange={(e) => updateSettings({ errorReports: e.target.checked })} /> Send anonymous
+          error reports
+        </label>
+        <p className="small muted" style={{ margin: 0 }}>
+          If something breaks, the app sends only the error message, the part of the code where it happened, the page name, and your browser type.
+          Never your notes, studies, sermons, highlights, or settings.
+        </p>
       </section>
       <section className="card stack">
         <h2>Keyboard shortcuts</h2>

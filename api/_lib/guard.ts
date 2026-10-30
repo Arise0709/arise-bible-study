@@ -70,6 +70,11 @@ async function hit(key: string, windowSec: number, peek = false): Promise<number
   return cur.count
 }
 
+/** General-purpose limiter for other endpoints: true when `key` has gone over `max` in the window. */
+export async function rateLimited(key: string, windowSec: number, max: number): Promise<boolean> {
+  return (await hit(key, windowSec)) > max
+}
+
 export function __resetForTests() {
   memory.clear()
 }
