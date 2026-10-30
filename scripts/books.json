@@ -1,0 +1,716 @@
+[
+ {
+  "id": "Gen",
+  "name": "Genesis",
+  "abbr": [
+   "gen",
+   "ge",
+   "gn"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Exod",
+  "name": "Exodus",
+  "abbr": [
+   "exo",
+   "ex",
+   "exod"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Lev",
+  "name": "Leviticus",
+  "abbr": [
+   "lev",
+   "le",
+   "lv"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Num",
+  "name": "Numbers",
+  "abbr": [
+   "num",
+   "nu",
+   "nm",
+   "nb"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Deut",
+  "name": "Deuteronomy",
+  "abbr": [
+   "deut",
+   "deu",
+   "dt",
+   "de"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Josh",
+  "name": "Joshua",
+  "abbr": [
+   "josh",
+   "jos",
+   "jsh"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Judg",
+  "name": "Judges",
+  "abbr": [
+   "judg",
+   "jdg",
+   "jg",
+   "jdgs"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Ruth",
+  "name": "Ruth",
+  "abbr": [
+   "rut",
+   "ru",
+   "rth"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "1Sam",
+  "name": "1 Samuel",
+  "abbr": [
+   "1sam",
+   "1sa",
+   "1sm",
+   "1s",
+   "isam",
+   "1samuel",
+   "isamuel"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "2Sam",
+  "name": "2 Samuel",
+  "abbr": [
+   "2sam",
+   "2sa",
+   "2sm",
+   "2s",
+   "iisam",
+   "2samuel",
+   "iisamuel"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "1Kgs",
+  "name": "1 Kings",
+  "abbr": [
+   "1kgs",
+   "1ki",
+   "1kg",
+   "1k",
+   "ikgs",
+   "1kings",
+   "ikings"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "2Kgs",
+  "name": "2 Kings",
+  "abbr": [
+   "2kgs",
+   "2ki",
+   "2kg",
+   "2k",
+   "iikgs",
+   "2kings",
+   "iikings"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "1Chr",
+  "name": "1 Chronicles",
+  "abbr": [
+   "1chr",
+   "1ch",
+   "1chron",
+   "ichr",
+   "1chronicles",
+   "ichronicles"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "2Chr",
+  "name": "2 Chronicles",
+  "abbr": [
+   "2chr",
+   "2ch",
+   "2chron",
+   "iichr",
+   "2chronicles",
+   "iichronicles"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Ezra",
+  "name": "Ezra",
+  "abbr": [
+   "ezr",
+   "ezra"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Neh",
+  "name": "Nehemiah",
+  "abbr": [
+   "neh",
+   "ne"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Esth",
+  "name": "Esther",
+  "abbr": [
+   "esth",
+   "est",
+   "es"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Job",
+  "name": "Job",
+  "abbr": [
+   "job",
+   "jb"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Ps",
+  "name": "Psalms",
+  "abbr": [
+   "ps",
+   "psa",
+   "psalm",
+   "pss",
+   "psm",
+   "pslm"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Prov",
+  "name": "Proverbs",
+  "abbr": [
+   "prov",
+   "pro",
+   "pr",
+   "prv"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Eccl",
+  "name": "Ecclesiastes",
+  "abbr": [
+   "eccl",
+   "ecc",
+   "ec",
+   "eccles",
+   "qoh"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Song",
+  "name": "Song of Solomon",
+  "abbr": [
+   "song",
+   "sos",
+   "so",
+   "songofsongs",
+   "songofsolomon",
+   "canticles",
+   "cant"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Isa",
+  "name": "Isaiah",
+  "abbr": [
+   "isa",
+   "is"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Jer",
+  "name": "Jeremiah",
+  "abbr": [
+   "jer",
+   "je",
+   "jr"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Lam",
+  "name": "Lamentations",
+  "abbr": [
+   "lam",
+   "la"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Ezek",
+  "name": "Ezekiel",
+  "abbr": [
+   "ezek",
+   "eze",
+   "ezk"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Dan",
+  "name": "Daniel",
+  "abbr": [
+   "dan",
+   "da",
+   "dn"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Hos",
+  "name": "Hosea",
+  "abbr": [
+   "hos",
+   "ho"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Joel",
+  "name": "Joel",
+  "abbr": [
+   "joel",
+   "jl"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Amos",
+  "name": "Amos",
+  "abbr": [
+   "amos",
+   "am"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Obad",
+  "name": "Obadiah",
+  "abbr": [
+   "obad",
+   "ob",
+   "oba"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Jonah",
+  "name": "Jonah",
+  "abbr": [
+   "jonah",
+   "jon",
+   "jnh"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Mic",
+  "name": "Micah",
+  "abbr": [
+   "mic",
+   "mc"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Nah",
+  "name": "Nahum",
+  "abbr": [
+   "nah",
+   "na"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Hab",
+  "name": "Habakkuk",
+  "abbr": [
+   "hab",
+   "hb"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Zeph",
+  "name": "Zephaniah",
+  "abbr": [
+   "zeph",
+   "zep",
+   "zp"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Hag",
+  "name": "Haggai",
+  "abbr": [
+   "hag",
+   "hg"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Zech",
+  "name": "Zechariah",
+  "abbr": [
+   "zech",
+   "zec",
+   "zc"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Mal",
+  "name": "Malachi",
+  "abbr": [
+   "mal",
+   "ml"
+  ],
+  "testament": "OT"
+ },
+ {
+  "id": "Matt",
+  "name": "Matthew",
+  "abbr": [
+   "matt",
+   "mat",
+   "mt"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Mark",
+  "name": "Mark",
+  "abbr": [
+   "mark",
+   "mrk",
+   "mk",
+   "mr"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Luke",
+  "name": "Luke",
+  "abbr": [
+   "luke",
+   "luk",
+   "lk"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "John",
+  "name": "John",
+  "abbr": [
+   "john",
+   "joh",
+   "jhn",
+   "jn"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Acts",
+  "name": "Acts",
+  "abbr": [
+   "acts",
+   "act",
+   "ac"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Rom",
+  "name": "Romans",
+  "abbr": [
+   "rom",
+   "ro",
+   "rm"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "1Cor",
+  "name": "1 Corinthians",
+  "abbr": [
+   "1cor",
+   "1co",
+   "icor",
+   "1corinthians",
+   "icorinthians"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "2Cor",
+  "name": "2 Corinthians",
+  "abbr": [
+   "2cor",
+   "2co",
+   "iicor",
+   "2corinthians",
+   "iicorinthians"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Gal",
+  "name": "Galatians",
+  "abbr": [
+   "gal",
+   "ga"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Eph",
+  "name": "Ephesians",
+  "abbr": [
+   "eph",
+   "ephes"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Phil",
+  "name": "Philippians",
+  "abbr": [
+   "phil",
+   "php",
+   "pp"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Col",
+  "name": "Colossians",
+  "abbr": [
+   "col",
+   "co"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "1Thess",
+  "name": "1 Thessalonians",
+  "abbr": [
+   "1thess",
+   "1th",
+   "1thes",
+   "ithess",
+   "1thessalonians",
+   "ithessalonians"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "2Thess",
+  "name": "2 Thessalonians",
+  "abbr": [
+   "2thess",
+   "2th",
+   "2thes",
+   "iithess",
+   "2thessalonians",
+   "iithessalonians"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "1Tim",
+  "name": "1 Timothy",
+  "abbr": [
+   "1tim",
+   "1ti",
+   "itim",
+   "1timothy",
+   "itimothy"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "2Tim",
+  "name": "2 Timothy",
+  "abbr": [
+   "2tim",
+   "2ti",
+   "iitim",
+   "2timothy",
+   "iitimothy"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Titus",
+  "name": "Titus",
+  "abbr": [
+   "titus",
+   "tit",
+   "ti"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Phlm",
+  "name": "Philemon",
+  "abbr": [
+   "phlm",
+   "philem",
+   "phm",
+   "pm"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Heb",
+  "name": "Hebrews",
+  "abbr": [
+   "heb"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Jas",
+  "name": "James",
+  "abbr": [
+   "jas",
+   "jm",
+   "jam",
+   "jms"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "1Pet",
+  "name": "1 Peter",
+  "abbr": [
+   "1pet",
+   "1pe",
+   "1pt",
+   "1p",
+   "ipet",
+   "1peter",
+   "ipeter"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "2Pet",
+  "name": "2 Peter",
+  "abbr": [
+   "2pet",
+   "2pe",
+   "2pt",
+   "2p",
+   "iipet",
+   "2peter",
+   "iipeter"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "1John",
+  "name": "1 John",
+  "abbr": [
+   "1john",
+   "1jn",
+   "1jo",
+   "1joh",
+   "ijohn",
+   "1jhn"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "2John",
+  "name": "2 John",
+  "abbr": [
+   "2john",
+   "2jn",
+   "2jo",
+   "2joh",
+   "iijohn",
+   "2jhn"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "3John",
+  "name": "3 John",
+  "abbr": [
+   "3john",
+   "3jn",
+   "3jo",
+   "3joh",
+   "iiijohn",
+   "3jhn"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Jude",
+  "name": "Jude",
+  "abbr": [
+   "jude",
+   "jud",
+   "jd"
+  ],
+  "testament": "NT"
+ },
+ {
+  "id": "Rev",
+  "name": "Revelation",
+  "abbr": [
+   "rev",
+   "re",
+   "rv",
+   "revelation",
+   "apocalypse"
+  ],
+  "testament": "NT"
+ }
+]
