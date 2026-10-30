@@ -1,0 +1,167 @@
+{
+ "generated": "build",
+ "translations": [
+  {
+   "id": "kjv",
+   "name": "King James Version",
+   "path": "kjv/",
+   "source": "kjv"
+  }
+ ],
+ "sources": [
+  {
+   "id": "kjv",
+   "kind": "translation",
+   "name": "King James Version (1769 Blayney text)",
+   "provider": "CrossWire Bible Society, KJV module source (kjvfull.xml)",
+   "url": "https://gitlab.com/crosswire-bible-society/kjv",
+   "file": "kjvfull.xml",
+   "version": "git d490be7e34762deb2c76cb2c1306d4808e27890d (2023-07-26)",
+   "license": "Public domain (Crown copyright in the United Kingdom). CrossWire: General public license for distribution for any purpose.",
+   "attribution": "KJV text and Strong's word tagging from the CrossWire Bible Society KJV module.",
+   "notes": "Text preserved as in the source. Words in the source's divineName markup (LORD, GOD) are shown in small capitals, as in printed KJVs. Italic words are those the source marks as added by the translators. Margin notes are the 1611 translators' notes carried in the source. Maintainer comments (x-strongsMarkup) are not shown.",
+   "sha256": {
+    "kjvfull.xml": "d5114fc1ab17b1e141ff5c035ef3a4354437fd24b4b8ee34f4c925915c0374ef"
+   }
+  },
+  {
+   "id": "strongs",
+   "kind": "lexicon",
+   "name": "Strong's Hebrew and Greek Dictionaries (1890/1894)",
+   "provider": "Open Scriptures (openscriptures/strongs)",
+   "url": "https://github.com/openscriptures/strongs",
+   "file": "strongs-hebrew.js, strongs-greek.js",
+   "version": "git 0acd2f251c2d35ff8db2dece4e0593979d3ac223",
+   "license": "CC BY-SA (JSON edition). Underlying work by James Strong is public domain.",
+   "attribution": "Strong's dictionaries, JSON edition (c) Open Scriptures, CC BY-SA. XML e-texts by David Instone-Brewer, David Troidl (Hebrew) and Ulrik Petersen (Greek).",
+   "notes": "Share-alike applies to the lexicon data files in public/data/strongs.",
+   "sha256": {
+    "strongs-hebrew.js": "5ce6aeed551c709f49bcfa341cadf2f34bc7599b85d9de9e6ac2ecbf60fc3739",
+    "strongs-greek.js": "7624ee738ae47e80f1a352223e28a26d011c9cd4898822cee52f47a010c04efd"
+   }
+  },
+  {
+   "id": "stepbible",
+   "kind": "lexicon",
+   "name": "STEPBible TBESH and TBESG lexicons",
+   "provider": "STEPBible.org / Tyndale House, Cambridge",
+   "url": "https://github.com/STEPBible/STEPBible-Data",
+   "file": "tbesh.txt, tbesg.txt",
+   "version": "git be4191f0082aeedddb0eff0c02c966292b2bd641",
+   "license": "CC BY 4.0",
+   "attribution": "Data created by www.STEPBible.org based on work at Tyndale House Cambridge (CC BY 4.0).",
+   "notes": "Used fields: brief gloss and grammatical code (part of speech) for Hebrew and Greek, and the Abbott-Smith Manual Greek Lexicon (1922) senses for Greek. The Hebrew 'Meaning' column (Abridged BDB, Online Bible) is not used because it requires separate permission. Changes: reformatted to JSON; Scripture references converted to app links.",
+   "sha256": {
+    "tbesh.txt": "464dccadd95fd8620dd05fa0d7a4caba58ec3c4d5db3ebf38e43d046ca25b591",
+    "tbesg.txt": "312f723d7b8ef263bbdfb0451c9b8057125804dfff390b6f8544cff2a84b57f4"
+   }
+  },
+  {
+   "id": "openbible-xrefs",
+   "kind": "cross-references",
+   "name": "OpenBible.info Cross References",
+   "provider": "OpenBible.info, distributed in scrollmapper/bible_databases",
+   "url": "https://www.openbible.info/labs/cross-references/",
+   "file": "cross_references.txt",
+   "version": "2024-11-04 (scrollmapper git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+   "license": "CC BY",
+   "attribution": "Cross references from OpenBible.info, CC BY.",
+   "notes": "Votes are community relevance votes. Entries with zero or negative votes are excluded. The connection between two passages is for the reader to explain.",
+   "sha256": {
+    "cross_references.txt": "452b263f657d3e721d20341b6b82f1196fc98882d685bd4ef9050ae17f033f82"
+   }
+  },
+  {
+   "id": "isbe",
+   "kind": "dictionary",
+   "name": "International Standard Bible Encyclopedia (1915)",
+   "provider": "CrossWire Bible Society",
+   "url": "https://gitlab.com/crosswire-bible-society/isbe",
+   "file": "isbe.tei.xml",
+   "version": "git ec5b70d0eb87db94b7c117182366028f907f0c17",
+   "license": "Public domain",
+   "attribution": "James Orr, general editor, The International Standard Bible Encyclopedia, 1915.",
+   "notes": "Historical and archaeological statements reflect scholarship as of 1915 and may be outdated.",
+   "sha256": {
+    "isbe.tei.xml": "65a0db81fc8a7e20f6d1ad2c400c9d0758f0b6486db4e89450e809f0f4edc9d5"
+   }
+  },
+  {
+   "id": "hitchcock",
+   "kind": "dictionary",
+   "name": "Hitchcock's Bible Names Dictionary (1869)",
+   "provider": "CrossWire Bible Society",
+   "url": "https://gitlab.com/crosswire-bible-society/hitchcock",
+   "file": "hitchcock.tei.xml",
+   "version": "git d79b9aae10337d6c0d387da91da3a5f997ee4829",
+   "license": "Public domain",
+   "attribution": "Roswell D. Hitchcock, Hitchcock's New and Complete Analysis of the Holy Bible, 1869/1874.",
+   "notes": "Name meanings are traditional etymologies; many are uncertain or disputed by modern scholarship.",
+   "sha256": {
+    "hitchcock.tei.xml": "b7933443ad52bddc8e5044f49b0cec2e1a75beeeb517354e9bee4a38d1ac2f05"
+   }
+  },
+  {
+   "id": "webster1913",
+   "kind": "dictionary",
+   "name": "Webster's Revised Unabridged Dictionary (1913)",
+   "provider": "CrossWire Bible Society",
+   "url": "https://gitlab.com/crosswire-bible-society/webster1913",
+   "file": "webster1913.tei.xml",
+   "version": "git 72baf03e62b6a0ebc659324b758bcf46a7dbdc8c",
+   "license": "Public domain",
+   "attribution": "Webster's Revised Unabridged Dictionary, G. & C. Merriam Co., 1913.",
+   "notes": "Filtered to words found in the KJV. Older senses are often listed first; it is a 1913 work, not a modern dictionary.",
+   "sha256": {
+    "webster1913.tei.xml": "036449c3f41e864d507daff33b6378ff4772cfd6c2c68f23c8e8eac5bd1fbc38"
+   }
+  },
+  {
+   "id": "wordnet",
+   "kind": "thesaurus",
+   "name": "WordNet 3.1",
+   "provider": "Princeton University, via npm package wordnet-db 3.1.14",
+   "url": "https://wordnet.princeton.edu/",
+   "file": "wordnet-db",
+   "version": "3.1",
+   "license": "WordNet License (permissive, attribution required)",
+   "attribution": "WordNet 3.1 Copyright 2011 by Princeton University. All rights reserved. Princeton University makes no representations or warranties.",
+   "notes": "Modern English senses, synonyms and antonyms. Filtered to words found in the KJV.",
+   "sha256": {
+    "wn/wordnet-db-3.1.14.tgz": "9b93831ae01771d02f360c1ebf3fe415ed2426a31f2201cb0943025c7403e79a"
+   }
+  },
+  {
+   "id": "archaic-editorial",
+   "kind": "editorial",
+   "name": "KJV Archaic Words (app editorial list)",
+   "provider": "Arise Bible Study (app-authored)",
+   "url": "",
+   "file": "scripts/editorial/archaic.json",
+   "version": "1",
+   "license": "App content",
+   "attribution": "Editorial list written for this app. Not a published reference work.",
+   "notes": "Short modern equivalents for common archaic KJV words. Every sample verse is checked at build time to exist and contain the word. Verify meanings against Webster 1913 and ISBE entries linked beside each item.",
+   "sha256": {}
+  }
+ ],
+ "integrity": {
+  "missingFromLexicon": [],
+  "usedIds": 14075,
+  "lexiconEntries": 14197
+ },
+ "notAvailable": [
+  {
+   "name": "Easton's Bible Dictionary",
+   "reason": "No reachable source during build. ISBE and Hitchcock cover the same ground."
+  },
+  {
+   "name": "Greek pronunciation guide",
+   "reason": "The Open Scriptures Greek dictionary does not include Strong's pronunciation field. Transliteration is shown instead."
+  },
+  {
+   "name": "Hebrew lexical senses (BDB)",
+   "reason": "The available abridged BDB requires permission from Online Bible. Strong's definitions and STEPBible glosses are shown instead."
+  }
+ ]
+}
