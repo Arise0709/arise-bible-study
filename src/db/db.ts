@@ -92,6 +92,8 @@ export interface SermonSection {
 export interface Sermon {
   id: string
   title: string
+  subtitle?: string // secondary title under the main title
+  series?: string // e.g. "The Anointing, Part 2 of 3"
   passage: string
   mainIdea: string
   objective: string

@@ -77,7 +77,8 @@ export function layoutTemplate(doc: DocNode[], info: TemplateInfo): TemplateLayo
   )
 
   const b: TBlock[] = [{ k: 'series', text: info.series }, { k: 'title', text: title }]
-  if (meta.get('Main idea')) b.push({ k: 'subtitle', text: meta.get('Main idea')! })
+  const subtitle = meta.get('Secondary title') || meta.get('Main idea')
+  if (subtitle) b.push({ k: 'subtitle', text: subtitle })
   if (passage || supporting.length) b.push({ k: 'refs', text: [passage, ...supporting.slice(0, 3)].filter(Boolean).join('  |  ') })
   b.push({ k: 'divider' })
   const textLine = [passage && `Text: ${passage} (KJV)`, supporting.length ? `Supporting: ${supporting.join(', ')}` : ''].filter(Boolean).join('  |  ')
@@ -86,10 +87,12 @@ export function layoutTemplate(doc: DocNode[], info: TemplateInfo): TemplateLayo
     meta.get('Audience') && `Audience: ${meta.get('Audience')}`,
     meta.get('Estimated length') && `Estimated length: ${meta.get('Estimated length')}`,
     meta.get('Approach') && `Approach: ${meta.get('Approach')}`,
+    meta.get('Series') && `Series: ${meta.get('Series')}`,
   ]
     .filter(Boolean)
     .join('  |  ')
   if (detailLine) b.push({ k: 'body', text: detailLine })
+  if (meta.get('Secondary title') && meta.get('Main idea')) b.push({ k: 'body', text: `Main idea: ${meta.get('Main idea')}` })
   if (meta.get('Teaching objective')) b.push({ k: 'body', text: `Objective: ${meta.get('Teaching objective')}` })
   b.push({ k: 'divider' })
 

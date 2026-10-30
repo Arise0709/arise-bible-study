@@ -41,6 +41,8 @@ export function blockToNodes(b: Block): DocNode[] {
 export function sermonToDoc(s: Sermon, passageText?: string, approach?: string): DocNode[] {
   const out: DocNode[] = [{ t: 'title', text: s.title || 'Untitled' }]
   if (s.passage) out.push({ t: 'meta', label: 'Primary passage', text: refLabel(s.passage) })
+  if (s.subtitle) out.push({ t: 'meta', label: 'Secondary title', text: s.subtitle })
+  if (s.series) out.push({ t: 'meta', label: 'Series', text: s.series })
   if (s.mainIdea) out.push({ t: 'meta', label: 'Main idea', text: s.mainIdea })
   if (s.objective) out.push({ t: 'meta', label: 'Teaching objective', text: s.objective })
   if (s.audience) out.push({ t: 'meta', label: 'Audience', text: s.audience })

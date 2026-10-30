@@ -1,8 +1,24 @@
 import { db, uid, type Block, type Sermon, type SermonSection, type Study } from '../db/db'
+import { getPassage } from '../lib/data'
+import { parseOsis } from '../lib/refs'
 
 type Def = [type: string, title: string, level?: 1 | 2, hint?: string]
 
 export const TEMPLATES: Record<string, { name: string; description: string; sections: Def[] }> = {
+  arise: {
+    name: 'Arise sermon manuscript',
+    description: 'The Arise notes template: Opening, numbered sections, and an altar with three prayer points.',
+    sections: [
+      ['intro', 'Opening — ', 1, 'Opening verse, the setting, and why this matters today.'],
+      ['point', 'Section 1 — ', 1, 'Main point. Add a Scripture box, explain it, end with a KEY TRUTH: line.'],
+      ['point', 'Section 2 — ', 1, 'Main point.'],
+      ['point', 'Section 3 — ', 1, 'Main point.'],
+      ['conclusion', 'The Altar — ', 1, 'Response and commissioning.'],
+      ['subpoint', 'Prayer Point 1 — ', 2, 'Anchor Scripture, direction, then a PRAYER: line.'],
+      ['subpoint', 'Prayer Point 2 — ', 2],
+      ['subpoint', 'Prayer Point 3 — ', 2],
+    ],
+  },
   blank: { name: 'Blank', description: 'Start with an empty outline and add sections as you go.', sections: [] },
   expository: {
     name: 'Expository sermon',
@@ -96,7 +112,7 @@ export function newSermon(template: string, folderId?: string): Sermon {
     mainIdea: '',
     objective: '',
     audience: '',
-    length: template === 'smallgroup' ? '60 minutes' : template === 'lesson' ? '45 minutes' : '35-45 minutes',
+    length: template === 'smallgroup' ? '60 minutes' : template === 'lesson' ? '45 minutes' : '35-40 minutes',
     template,
     status: 'draft',
     tags: [],
@@ -110,30 +126,64 @@ export function newSermon(template: string, folderId?: string): Sermon {
 
 const copy = (blocks: Block[]) => blocks.map((b) => ({ ...b, id: uid() }) as Block)
 
-/** Builds an expository outline from a worksheet, keeping every block's kind (Scripture, source, own words). */
+const firstLine = (b: Block) => (b.kind === 'note' ? b.text.split('\n')[0].trim() : '')
+const shortTitle = (text: string, fallback: string) => {
+  const t = text.replace(/^(KEY TRUTH|HARD TRUTH|PRAYER):\s*/i, '').replace(/[.:;,]+$/, '')
+  return t && t.length <= 60 ? t : fallback
+}
+
+/**
+ * Builds a sermon in the shape of the Arise notes template from a worksheet:
+ *   Opening (opening verse + context), Section 1..n (one per interpretation note, with observations,
+ *   word studies and cross-references as subpoints), and The Altar with three prayer points and the
+ *   summary as the closing KEY TRUTH. Every block keeps its kind, so Scripture stays exact KJV and
+ *   sourced material stays cited.
+ */
 export async function createSermonFromStudy(study: Study): Promise<string> {
-  const s = newSermon('expository')
+  const s = newSermon('arise')
   const S = study.sections
-  const section = (type: string, title: string, blocks: Block[], level: 1 | 2 = 1): SermonSection => ({ id: uid(), type, title, level, blocks: copy(blocks) })
+  const sec = (type: string, title: string, blocks: Block[], level: 1 | 2 = 1): SermonSection => ({ id: uid(), type, title, level, blocks: copy(blocks) })
+  const note = (text = ''): Block => ({ id: uid(), kind: 'note', text })
   s.title = study.title.replace(/^Study of /, '')
   s.passage = study.passage
   s.studyId = study.id
   s.tags = [...study.tags]
-  const firstSummary = S.summary.find((b) => b.kind === 'note')
-  s.mainIdea = firstSummary && firstSummary.kind === 'note' ? firstSummary.text.split('\n')[0].slice(0, 300) : ''
-  s.sections = [
-    section('intro', 'Introduction', []),
-    section('context', 'Context of the passage', S.context),
-    section('point', 'Main point', S.interpretation.length ? S.interpretation : []),
-    section('subpoint', 'What the text shows', S.observation, 2),
-    section('wordstudy', 'Word-study insights', S.wordStudy),
-    section('point', 'Supporting Scripture', S.crossRefs),
-    section('illustration', 'Illustrations and examples', []),
-    section('application', 'Practical applications', S.application),
-    section('questions', 'Discussion questions', []),
-    section('conclusion', 'Conclusion and response', S.summary),
-  ]
-  for (const sec of s.sections) if (!sec.blocks.length) sec.blocks.push({ id: uid(), kind: 'note', text: '' })
+  const summary = S.summary.find((b) => b.kind === 'note' && b.text.trim())
+  s.mainIdea = summary ? firstLine(summary).slice(0, 300) : ''
+
+  // Opening: the first verse of the passage, exactly as in the KJV, then the reader's context notes
+  const opening: Block[] = []
+  const ref = parseOsis(study.passage)
+  if (ref) {
+    const first = (await getPassage(ref).catch(() => []))[0]
+    if (first) opening.push({ id: uid(), kind: 'scripture', ref: `${first.book}.${first.chapter}.${first.verse}`, text: first.text })
+  }
+  opening.push(...S.context, note())
+
+  // Sections: one per interpretation note (main points); scripture/source blocks in Interpretation join the first
+  const points = S.interpretation.filter((b) => b.kind === 'note' && b.text.trim())
+  const extras = S.interpretation.filter((b) => !(b.kind === 'note' && b.text.trim()))
+  const sections: SermonSection[] = [sec('intro', 'Opening — ' + shortTitle(s.mainIdea, 'Theme of the opening'), opening)]
+  const count = Math.max(points.length, 1)
+  for (let i = 0; i < count; i++) {
+    const p = points[i]
+    const body: Block[] = p ? [p] : [note()]
+    if (i === 0) body.unshift(...extras)
+    body.push(note()) // room for an explanation or a KEY TRUTH: line
+    sections.push(sec('point', `Section ${i + 1} — ` + (p ? shortTitle(firstLine(p), 'Main point') : 'Main point'), body))
+    if (i === 0 && S.observation.length) sections.push(sec('subpoint', 'What the text shows', S.observation, 2))
+    if (i === 0 && S.wordStudy.length) sections.push(sec('wordstudy', 'Key words', S.wordStudy, 2))
+  }
+  if (S.crossRefs.length) sections.push(sec('subpoint', 'Supporting Scripture', S.crossRefs, 2))
+  if (S.application.length) sections.push(sec('application', `Section ${count + 1} — Living it out`, S.application))
+
+  // The Altar
+  const closing = summary && summary.kind === 'note' ? [note(`KEY TRUTH: ${firstLine(summary)}`), ...copy(S.summary.filter((b) => b !== summary))] : [note()]
+  sections.push(sec('conclusion', 'The Altar — Response', [note('[LEADER CUE] Read the anchor Scripture over the room before each prayer point.')]))
+  for (let i = 1; i <= 3; i++) sections.push(sec('subpoint', `Prayer Point ${i} — `, [note()], 2))
+  sections.push(sec('conclusion', 'Closing charge', closing, 2))
+
+  s.sections = sections
   s.sources = "KJV text: CrossWire Bible Society.\nStrong's dictionaries: Open Scriptures (CC BY-SA).\nCross-references: OpenBible.info (CC BY)."
   await db.sermons.add(s)
   return s.id

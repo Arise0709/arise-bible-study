@@ -149,7 +149,7 @@ async function exportSermon(s: Sermon, kind: 'md' | 'docx' | 'pdf') {
     const name = slug(s.title)
     if (kind === 'md') downloadBlob(new Blob([toMarkdown(doc)], { type: 'text/markdown' }), `${name}.md`)
     const folder = s.folderId ? await db.folders.get(s.folderId) : undefined
-    const info = { kind: 'Sermon Manuscript', series: folder?.name ?? approach ?? 'Sermon Notes' }
+    const info = { kind: 'Sermon Manuscript', series: s.series || folder?.name || approach || 'Sermon Notes' }
     if (kind === 'docx') downloadBlob(await wordExport(doc, info), `${name}.docx`)
     if (kind === 'pdf') downloadBlob(await pdfExport(doc, info), `${name}.pdf`)
   } catch (e) {
@@ -231,9 +231,16 @@ function SermonEditor({ initial }: { initial: Sermon }) {
       </div>
 
       <label className="sr-only" htmlFor="stitle">Title</label>
-      <input id="stitle" value={s.title} onChange={(e) => up({ title: e.target.value })} placeholder="Title" style={{ fontSize: '1.7rem', fontWeight: 700, border: '1px solid transparent', background: 'transparent', padding: '4px 0' }} />
+      <input id="stitle" value={s.title} onChange={(e) => up({ title: e.target.value })} placeholder="Title" style={{ display: 'block', width: '100%', fontSize: '1.7rem', fontWeight: 700, border: '1px solid transparent', background: 'transparent', padding: '4px 0' }} />
+
+      <label className="sr-only" htmlFor="ssub">Secondary title</label>
+      <input id="ssub" value={s.subtitle ?? ''} onChange={(e) => up({ subtitle: e.target.value })} placeholder="Secondary title (optional)" style={{ display: 'block', width: '100%', marginTop: 0, fontSize: '1.1rem', fontStyle: 'italic', color: 'var(--accent-strong)', border: '1px solid transparent', background: 'transparent', padding: '0 0 4px' }} />
 
       <div className="card stack">
+        <label className="field">
+          <span>Series (shown above the title in Word and PDF)</span>
+          <input value={s.series ?? ''} onChange={(e) => up({ series: e.target.value })} placeholder="The Anointing, Part 2 of 3" />
+        </label>
         <div className="grid-2">
           <label className="field">
             <span>Primary passage</span>
@@ -293,6 +300,10 @@ function SermonEditor({ initial }: { initial: Sermon }) {
         <BlockLegend />
       </div>
       <p className="muted small" style={{ margin: 0 }}>Drag sections by the handle, or use the arrow buttons. Indent a section to make it a subpoint.</p>
+      <div className="notice small">
+        <strong>Manuscript formats for Word and PDF.</strong> Start a line in any note with <code>KEY TRUTH:</code> (black bar), <code>HARD TRUTH:</code>,{' '}
+        <code>PRAYER:</code> (prayer box), <code>[PREACHER NOTE]</code> or <code>[LEADER CUE]</code>, or <code>- </code> for a bullet.
+      </div>
 
       {s.sections.map((sec, i) => (
         <div
@@ -407,7 +418,9 @@ export function TeachingView() {
         <button className="btn" onClick={() => setAllOpen(!allOpen)}>{allOpen ? 'Collapse all' : 'Expand all'}</button>
         <button className="btn" onClick={() => window.print()}><Printer size={15} /> Print</button>
       </div>
-      <h1>{s.title || 'Untitled'}</h1>
+      {s.series && <div className="muted" style={{ fontSize: '0.7em', letterSpacing: '0.2em', textTransform: 'uppercase' }}>{s.series}</div>}
+      <h1 style={{ marginBottom: 4 }}>{s.title || 'Untitled'}</h1>
+      {s.subtitle && <div style={{ fontStyle: 'italic', color: 'var(--accent-strong)', marginBottom: 6 }}>{s.subtitle}</div>}
       {passage && (
         <div className="muted" style={{ fontSize: '0.8em' }}>
           <ScriptureRef r={passage} />
@@ -442,9 +455,7 @@ export function TeachingView() {
                     </span>
                   </blockquote>
                 ) : b.kind === 'note' ? (
-                  <p key={b.id}>
-                    <LinkedText text={b.text} />
-                  </p>
+                  <ManuscriptText key={b.id} text={b.text} />
                 ) : (
                   <div key={b.id} style={{ fontSize: '0.85em', margin: '8px 0' }}>
                     <BlockView block={b} onChange={() => {}} readOnly />
@@ -461,5 +472,52 @@ export function TeachingView() {
         </details>
       )}
     </div>
+  )
+}
+
+/** Shows a note the way the manuscript prints it: KEY TRUTH bars, prayer boxes, [NOTES], bullets. */
+function ManuscriptText({ text }: { text: string }) {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean)
+  return (
+    <>
+      {lines.map((line, i) => {
+        let m: RegExpExecArray | null
+        if ((m = /^KEY TRUTH:\s*(.*)$/i.exec(line)))
+          return (
+            <div key={i} style={{ background: '#111', color: '#fff', fontWeight: 700, textAlign: 'center', padding: '8px 12px', margin: '12px 0', borderRadius: 4 }}>
+              KEY TRUTH: <LinkedText text={m[1]} />
+            </div>
+          )
+        if ((m = /^HARD TRUTH:\s*(.*)$/i.exec(line)))
+          return (
+            <p key={i}>
+              <strong style={{ color: '#B8972A' }}>HARD TRUTH:</strong> <em><LinkedText text={m[1]} /></em>
+            </p>
+          )
+        if ((m = /^PRAYER:\s*(.*)$/i.exec(line)))
+          return (
+            <blockquote key={i} style={{ fontFamily: 'var(--ui-font)', borderLeftColor: '#B8972A' }}>
+              <LinkedText text={m[1]} />
+            </blockquote>
+          )
+        if ((m = /^\[([^\]]{2,40})\]\s*(.*)$/.exec(line)))
+          return (
+            <p key={i} style={{ fontSize: '0.8em', marginLeft: '1em' }}>
+              <strong style={{ color: '#B8972A' }}>[{m[1].toUpperCase()}]</strong> <em><LinkedText text={m[2]} /></em>
+            </p>
+          )
+        if ((m = /^[-•*]\s+(.*)$/.exec(line)))
+          return (
+            <ul key={i} style={{ margin: '4px 0' }}>
+              <li><LinkedText text={m[1]} /></li>
+            </ul>
+          )
+        return (
+          <p key={i}>
+            <LinkedText text={line} />
+          </p>
+        )
+      })}
+    </>
   )
 }
