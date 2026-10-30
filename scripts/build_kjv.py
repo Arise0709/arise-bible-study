@@ -19,7 +19,7 @@ import json, os, re, sys, xml.sax
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "data-src", "kjvfull.xml")
 OUT = os.path.join(ROOT, "public", "data", "kjv")
-BOOKS = json.load(open(os.path.join(ROOT, "scripts", "books.json")))
+BOOKS = json.load(open(os.path.join(ROOT, "src", "lib", "books.json")))
 BOOK_NAMES = {b["id"]: b["name"] for b in BOOKS}
 
 ADDED, RED, DIVINE, INSCR = 1, 2, 4, 8

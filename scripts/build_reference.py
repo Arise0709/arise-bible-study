@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "data-src")
 DATA = os.path.join(ROOT, "public", "data")
-BOOKS = json.load(open(os.path.join(ROOT, "scripts", "books.json")))
+BOOKS = json.load(open(os.path.join(ROOT, "src", "lib", "books.json")))
 BOOK_IDS = {b["id"] for b in BOOKS}
 
 ISBE_BOOKS = {
