@@ -168,7 +168,9 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
   const md = fs.readFileSync(path.join(dir, 'out.md'), 'utf8')
   check('markdown keeps title, headings, quotation, notes', md.startsWith('# God So Loved') && md.includes('## ') && md.includes('For God so loved the world') && md.includes('(KJV)') && md.includes('Here God loves the whole world'), md.slice(0, 900))
   const docxText = execSync(`unzip -p ${path.join(dir, 'out.docx')} word/document.xml`).toString()
-  check('docx keeps headings, quotation, notes', docxText.includes('God So Loved') && docxText.includes('Heading2') && docxText.includes('For God so loved the world') && docxText.includes('Here God loves the whole world'))
+  const hdr = execSync(`unzip -p ${path.join(dir, 'out.docx')} word/header1.xml word/footer1.xml`).toString()
+  check('docx uses the church notes template (header, footer, styles)', hdr.includes('GOD SO LOVED') && hdr.includes('John 3:16-17 | KJV') && hdr.includes('Sermon Manuscript') && docxText.includes('w:fill="F7F6F2"') && !docxText.includes('Nazareth'))
+  check('docx keeps headings, quotation, notes', docxText.includes('GOD SO LOVED') && docxText.includes('Heading1') && docxText.includes('For God so loved the world') && docxText.includes('Here God loves the whole world'))
   check('pdf is a PDF', fs.readFileSync(path.join(dir, 'out.pdf')).subarray(0, 5).toString() === '%PDF-')
 
   await p.goto(sermonUrl + '/teach', { waitUntil: 'networkidle' })

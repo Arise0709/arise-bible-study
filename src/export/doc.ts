@@ -38,13 +38,14 @@ export function blockToNodes(b: Block): DocNode[] {
   }
 }
 
-export function sermonToDoc(s: Sermon, passageText?: string): DocNode[] {
+export function sermonToDoc(s: Sermon, passageText?: string, approach?: string): DocNode[] {
   const out: DocNode[] = [{ t: 'title', text: s.title || 'Untitled' }]
   if (s.passage) out.push({ t: 'meta', label: 'Primary passage', text: refLabel(s.passage) })
   if (s.mainIdea) out.push({ t: 'meta', label: 'Main idea', text: s.mainIdea })
   if (s.objective) out.push({ t: 'meta', label: 'Teaching objective', text: s.objective })
   if (s.audience) out.push({ t: 'meta', label: 'Audience', text: s.audience })
   if (s.length) out.push({ t: 'meta', label: 'Estimated length', text: s.length })
+  if (approach) out.push({ t: 'meta', label: 'Approach', text: approach })
   if (s.passage && passageText) out.push({ t: 'quote', text: passageText, cite: `${refLabel(s.passage)} (KJV)` })
   for (const sec of s.sections) {
     out.push({ t: sec.level === 2 ? 'h3' : 'h2', text: sec.title || 'Untitled section' })
@@ -59,6 +60,7 @@ export function sermonToDoc(s: Sermon, passageText?: string): DocNode[] {
 
 export function studyToDoc(s: Study, passageText?: string): DocNode[] {
   const out: DocNode[] = [{ t: 'title', text: s.title || 'Untitled study' }]
+  if (s.passage) out.push({ t: 'meta', label: 'Primary passage', text: refLabel(s.passage) })
   out.push({ t: 'h2', text: 'Passage' })
   if (passageText) out.push({ t: 'quote', text: passageText, cite: `${refLabel(s.passage)} (KJV)` })
   for (const sec of WORKSHEET_SECTIONS) {
@@ -211,4 +213,15 @@ export async function toPdf(doc: DocNode[]): Promise<Blob> {
     footer: (page: number, count: number) => ({ text: `${page} / ${count}`, alignment: 'center', fontSize: 8, color: '#888' }),
   }
   return pdfMake.createPdf(def).getBlob()
+}
+
+/** Word export: fills the church notes template; falls back to the built-in layout if the template cannot load. */
+export async function wordExport(doc: DocNode[], info: { kind: string; series: string }): Promise<Blob> {
+  try {
+    const { toTemplateDocx } = await import('./docxTemplate')
+    return await toTemplateDocx(doc, info)
+  } catch (e) {
+    console.warn('Template export failed, using the built-in layout instead.', e)
+    return toDocx(doc)
+  }
 }
