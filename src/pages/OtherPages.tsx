@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Bookmark, Clock, Download, NotebookPen, Plus, Trash2, Upload } from 'lucide-react'
 import { DictEntryEditor, DictionaryPanel, Highlighted, SourceBadge, ThesaurusPanel } from '../components/ReferencePanels'
 import { StrongsCard, StrongsLookup, ContextNote } from '../components/WordPanel'
-import { Empty, ErrorBox, Loading, Tabs, timeAgo, toast, useAsync } from '../components/ui'
+import { Empty, ErrorBox, Loading, Tabs, timeAgo, toast, toastUndo, useAsync } from '../components/ui'
 import { LinkedText, ScriptureRef } from '../components/Scripture'
 import { loadSources, loadTranslationIndex } from '../lib/data'
 import { aiStatus, getAiCode, setAiCode } from '../ai/assist'
@@ -203,7 +203,14 @@ export function SavedStudiesPage() {
                 <Bookmark size={14} className="muted" aria-hidden />
                 <ScriptureRef r={b.key} />
                 <span className="spacer" />
-                <button className="iconbtn" aria-label={`Remove bookmark ${b.label}`} onClick={() => db.bookmarks.delete(b.id)}>
+                <button
+                  className="iconbtn"
+                  aria-label={`Remove bookmark ${b.label}`}
+                  onClick={async () => {
+                    await db.bookmarks.delete(b.id)
+                    toastUndo('Bookmark removed', () => db.bookmarks.put(b))
+                  }}
+                >
                   <Trash2 size={15} />
                 </button>
               </li>

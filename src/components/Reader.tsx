@@ -5,8 +5,8 @@ import { Bookmark, BookOpen, ChevronLeft, ChevronRight, Copy, Highlighter, Link2
 import { FLAG_ADDED, FLAG_DIVINE, FLAG_RED, getPassage, passageToText, loadBook, loadBookIndex, loadTranslationBook, loadTranslationIndex, parseWord, segText, verseText, type Book, type Segment, type Verse } from '../lib/data'
 import { BOOKS, BOOK_BY_ID, BOOK_INDEX, formatRef, toOsis, type Ref } from '../lib/refs'
 import { quoteTr, useStudy, useStudySink } from '../lib/state'
-import { db, emptyWorksheet, uid, type VerseNote } from '../db/db'
-import { Dialog, ErrorBox, Loading, toast, useAsync } from './ui'
+import { db, emptyWorksheet, uid, type Highlight, type VerseNote } from '../db/db'
+import { Dialog, ErrorBox, Loading, toast, toastUndo, useAsync } from './ui'
 import { LinkedText } from './Scripture'
 
 export const HL_COLORS = ['yellow', 'green', 'blue', 'pink', 'purple'] as const
@@ -112,11 +112,27 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
   }
 
   const highlight = async (color: string | null) => {
+    const removed: Highlight[] = []
+    const added: string[] = []
     for (const v of selectedVerses) {
       const key = `${book}.${chapter}.${v.v}`
       const existing = await db.highlights.where('key').equals(key).first()
-      if (existing) await db.highlights.delete(existing.id)
-      if (color) await db.highlights.add({ id: uid(), key, book, color, createdAt: Date.now() })
+      if (existing) {
+        await db.highlights.delete(existing.id)
+        removed.push(existing)
+      }
+      if (color) {
+        const id = uid()
+        await db.highlights.add({ id, key, book, color, createdAt: Date.now() })
+        added.push(id)
+      }
+    }
+    if (removed.length) {
+      const what = color ? 'Highlight changed' : removed.length === 1 ? 'Highlight removed' : `${removed.length} highlights removed`
+      toastUndo(what, async () => {
+        await db.highlights.bulkDelete(added)
+        await db.highlights.bulkPut(removed)
+      })
     }
   }
 
@@ -126,7 +142,7 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
     const existing = await db.bookmarks.where('key').equals(key).first()
     if (existing) {
       await db.bookmarks.delete(existing.id)
-      toast('Bookmark removed')
+      toastUndo('Bookmark removed', () => db.bookmarks.put(existing))
     } else {
       await db.bookmarks.add({ id: uid(), key, book, label: formatRef(selRef), createdAt: Date.now() })
       toast(`Bookmarked ${formatRef(selRef)}`)

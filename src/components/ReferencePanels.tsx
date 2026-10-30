@@ -10,7 +10,7 @@ import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
 import { searchBible } from '../lib/search'
 import { useStudy, useStudySink } from '../lib/state'
 import { db, uid, type DictEntry, type VerseNote } from '../db/db'
-import { Dialog, Empty, ErrorBox, Loading, toast, useAsync } from './ui'
+import { Dialog, Empty, ErrorBox, Loading, toast, toastUndo, useAsync } from './ui'
 import { LinkedText, ScriptureRef, SourceHtml } from './Scripture'
 import { NoteDialog, numKey } from './Reader'
 
@@ -675,7 +675,7 @@ export function VerseNotesPanel() {
           className="iconbtn"
           onClick={async () => {
             await db.notes.delete(n.id)
-            toast('Note deleted')
+            toastUndo('Note deleted', () => db.notes.put(n))
           }}
           aria-label="Delete note"
         >

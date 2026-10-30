@@ -401,6 +401,53 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     await fresh.close()
   }
 
+  console.log('15. Undo for deleted notes, bookmarks, highlights (Kaizen M2)')
+  {
+    const u = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const q = await u.newPage()
+    const undo = async () => { await q.locator('.toast').getByRole('button', { name: 'Undo' }).click(); await q.locator('.toast', { hasText: 'Restored' }).waitFor() }
+    await q.goto(BASE + '/bible/Rom/8', { waitUntil: 'networkidle' })
+    // note
+    await q.locator('#v-Rom-8-28 .vnum').click()
+    await q.getByRole('button', { name: 'Note', exact: true }).click()
+    await q.getByLabel(/Your note/).fill('All things work together for good')
+    await q.getByLabel('Tags (comma separated)').fill('promise')
+    await q.getByRole('button', { name: 'Save note' }).click()
+    const notesPanel2 = q.locator('div.panel[aria-label="Study tools"]')
+    await notesPanel2.getByRole('tab', { name: /Notes/ }).click()
+    await notesPanel2.getByRole('button', { name: 'Delete note' }).first().click()
+    await q.locator('.toast', { hasText: 'Note deleted' }).waitFor()
+    await undo()
+    const noteBack = await q.evaluate(() => new Promise((res) => { const r = indexedDB.open('arise-bible-study'); r.onsuccess = () => { const g = r.result.transaction('notes').objectStore('notes').getAll(); g.onsuccess = () => res(g.result) } }))
+    check('Undo restores a deleted note with its text and tags', noteBack.length === 1 && noteBack[0].text === 'All things work together for good' && noteBack[0].tags[0] === 'promise')
+    // highlight
+    await q.locator('.verse-actions').getByRole('button', { name: 'Highlight yellow' }).click()
+    await q.waitForTimeout(300)
+    await q.locator('.verse-actions').getByRole('button', { name: 'Remove highlight' }).click()
+    await q.locator('.toast', { hasText: 'Highlight removed' }).waitFor()
+    check('highlight removed', !(await q.locator('#v-Rom-8-28').getAttribute('class')).includes('hl-yellow'))
+    await undo()
+    await q.waitForTimeout(300)
+    check('Undo restores a removed highlight', (await q.locator('#v-Rom-8-28').getAttribute('class')).includes('hl-yellow'))
+    // bookmark in the reader
+    await q.locator('.verse-actions').getByRole('button', { name: 'Bookmark' }).click()
+    await q.waitForTimeout(300)
+    await q.locator('.verse-actions').getByRole('button', { name: 'Bookmark' }).click()
+    await q.locator('.toast', { hasText: 'Bookmark removed' }).waitFor()
+    await undo()
+    await q.goto(BASE + '/studies', { waitUntil: 'networkidle' })
+    await q.getByRole('tab', { name: /Bookmarks/ }).click()
+    check('Undo restores a bookmark removed in the reader', (await q.locator('main').innerText()).includes('Romans 8:28'))
+    // bookmark in Saved Studies: delete and let the Undo time out
+    await q.getByRole('button', { name: /Remove bookmark/ }).first().click()
+    await q.locator('.toast', { hasText: 'Bookmark removed' }).waitFor()
+    await q.locator('.toast').waitFor({ state: 'detached', timeout: 9000 })
+    await q.reload({ waitUntil: 'networkidle' })
+    await q.getByRole('tab', { name: /Bookmarks/ }).click()
+    check('without Undo, the deletion stays deleted', !(await q.locator('main').innerText()).includes('Romans 8:28'))
+    await u.close()
+  }
+
   check('no uncaught page errors', errors.length === 0, errors.join(' | '))
   await browser.close()
   console.log(`\n${passed} passed, ${failures.length} failed`)

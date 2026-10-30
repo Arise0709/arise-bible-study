@@ -94,12 +94,31 @@ export function Tabs<T extends string>({ tabs, value, onChange, label }: { tabs:
   )
 }
 
-let toastSetter: ((m: string | null) => void) | null = null
-export function toast(message: string) {
-  toastSetter?.(message)
+interface ToastMsg {
+  id: number
+  text: string
+  action?: { label: string; onClick: () => void | Promise<void> }
+  ms: number
 }
+let toastSetter: ((m: ToastMsg | null) => void) | null = null
+let toastSeq = 0
+export function toast(message: string, action?: ToastMsg['action'], ms?: number) {
+  toastSetter?.({ id: ++toastSeq, text: message, action, ms: ms ?? (action ? 6000 : 2600) })
+}
+
+/** Shows a message with an Undo button; undo runs only if pressed before the message closes. */
+export function toastUndo(message: string, undo: () => Promise<unknown>) {
+  toast(message, {
+    label: 'Undo',
+    onClick: async () => {
+      await undo()
+      toast('Restored')
+    },
+  })
+}
+
 export function ToastHost() {
-  const [msg, setMsg] = useState<string | null>(null)
+  const [msg, setMsg] = useState<ToastMsg | null>(null)
   useEffect(() => {
     toastSetter = setMsg
     return () => {
@@ -108,12 +127,25 @@ export function ToastHost() {
   }, [])
   useEffect(() => {
     if (!msg) return
-    const t = setTimeout(() => setMsg(null), 2600)
+    const t = setTimeout(() => setMsg((cur) => (cur?.id === msg.id ? null : cur)), msg.ms)
     return () => clearTimeout(t)
   }, [msg])
   return msg ? (
-    <div className="toast" role="status" aria-live="polite">
-      {msg}
+    <div className="toast" role="status" aria-live="polite" style={msg.action ? { display: 'flex', gap: 12, alignItems: 'center' } : undefined}>
+      <span>{msg.text}</span>
+      {msg.action && (
+        <button
+          className="btn sm"
+          style={{ background: 'var(--bg)', color: 'var(--text)', borderColor: 'transparent' }}
+          onClick={() => {
+            const a = msg.action!
+            setMsg(null)
+            void a.onClick()
+          }}
+        >
+          {msg.action.label}
+        </button>
+      )}
     </div>
   ) : null
 }
