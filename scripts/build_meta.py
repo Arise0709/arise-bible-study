@@ -135,8 +135,19 @@ def build_sources():
     for s in S:
         s["sha256"] = {f: sha(os.path.join(SRC, f)) for f in files.get(s["id"], []) if os.path.exists(os.path.join(SRC, f))}
     missing = json.load(open(os.path.join(DATA, "reports", "strongs-missing.json")))
+    extra_translations = []
+    tindex = os.path.join(DATA, "translations", "index.json")
+    if os.path.exists(tindex):
+        for t in json.load(open(tindex, encoding="utf-8")):
+            extra_translations.append({"id": t["id"], "name": t["name"], "path": f"translations/{t['id']}/", "source": t["id"]})
+            S.append({
+                "id": t["id"], "kind": "translation", "name": f"{t['name']} ({t['year']})",
+                "provider": "scrollmapper/bible_databases", "url": t["url"], "file": t["source"], "version": t["source"].split("(")[-1].rstrip(")"),
+                "license": t["license"], "attribution": f"{t['name']} text from the scrollmapper bible_databases collection.",
+                "notes": t["note"] + " Plain text for reading and comparison; Strong's word study uses the KJV.", "sha256": {t["source"].split(" ")[1]: t["sha256"]},
+            })
     out = {
-        "generated": "build", "translations": [{"id": "kjv", "name": "King James Version", "path": "kjv/", "source": "kjv"}],
+        "generated": "build", "translations": [{"id": "kjv", "name": "King James Version", "path": "kjv/", "source": "kjv"}] + extra_translations,
         "sources": S, "integrity": missing,
         "notAvailable": [
             {"name": "Easton's Bible Dictionary", "reason": "No reachable source during build. ISBE and Hitchcock cover the same ground."},

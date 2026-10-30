@@ -15,4 +15,8 @@ STEP="$GH/STEPBible/STEPBible-Data/be4191f0082aeedddb0eff0c02c966292b2bd641/Lexi
 curl -fsSL -o tbesh.txt "$STEP/TBESH%20-%20Translators%20Brief%20lexicon%20of%20Extended%20Strongs%20for%20Hebrew%20-%20STEPBible.org%20CC%20BY.txt"
 curl -fsSL -o tbesg.txt "$STEP/TBESG%20-%20Translators%20Brief%20lexicon%20of%20Extended%20Strongs%20for%20Greek%20-%20STEPBible.org%20CC%20BY.txt"
 curl -fsSL -o cross_references.txt "$GH/scrollmapper/bible_databases/59b18c5af5845728c275d5b7178ad0d024172b1f/sources/extras/cross_references.txt"
+mkdir -p translations
+for t in BSB NHEB ASV YLT Webster BBE Geneva1599; do
+  curl -fsSL -o "translations/$t.json" "$GH/scrollmapper/bible_databases/59b18c5af5845728c275d5b7178ad0d024172b1f/formats/json/$t.json"
+done
 cd wn && npm pack wordnet-db@3.1.14 --silent && tar xzf wordnet-db-3.1.14.tgz

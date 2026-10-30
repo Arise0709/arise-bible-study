@@ -6,4 +6,5 @@ cd "$(dirname "$0")/.."
 python3 scripts/build_kjv.py
 python3 scripts/build_lexicon.py
 python3 scripts/build_reference.py
+python3 scripts/build_translations.py
 python3 scripts/build_meta.py

@@ -6,10 +6,11 @@ import { DictEntryEditor, DictionaryPanel, Highlighted, SourceBadge, ThesaurusPa
 import { StrongsCard, StrongsLookup, ContextNote } from '../components/WordPanel'
 import { Empty, ErrorBox, Loading, Tabs, downloadBlob, timeAgo, toast, useAsync } from '../components/ui'
 import { LinkedText, ScriptureRef } from '../components/Scripture'
-import { loadSources } from '../lib/data'
+import { loadSources, loadTranslationIndex } from '../lib/data'
 import { BOOKS, formatRef, parseOsis, parseRef, refPath } from '../lib/refs'
 import { onSearchProgress, searchBible, type SearchResult } from '../lib/search'
-import { useStudy } from '../lib/state'
+import { DEFAULTS, useStudy } from '../lib/state'
+import { ACCENTS, LINE_SPACING, SCRIPTURE_FONTS, TONES, UI_FONTS } from '../lib/appearance'
 import { db } from '../db/db'
 import { exportBackup, importBackup } from '../db/backup'
 
@@ -343,25 +344,8 @@ export function SettingsPage() {
   return (
     <div className="page stack" style={{ maxWidth: 760 }}>
       <h1>Settings</h1>
-      <section className="card stack">
-        <h2>Reading</h2>
-        <label className="field">
-          <span>Theme</span>
-          <select value={settings.theme} onChange={(e) => updateSettings({ theme: e.target.value as 'system' })}>
-            <option value="system">Match my device</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>Bible text size: {settings.readerSize}px</span>
-          <input type="range" min={14} max={30} value={settings.readerSize} onChange={(e) => updateSettings({ readerSize: parseInt(e.target.value, 10) })} />
-        </label>
-        <p style={{ fontFamily: 'var(--scripture-font)', fontSize: settings.readerSize, margin: 0 }}>In the beginning was the Word, and the Word was with God, and the Word was God.</p>
-        <label className="row"><input type="checkbox" checked={settings.redLetters} onChange={(e) => updateSettings({ redLetters: e.target.checked })} /> Show the words of Jesus in red</label>
-        <label className="row"><input type="checkbox" checked={settings.showTagged} onChange={(e) => updateSettings({ showTagged: e.target.checked })} /> Underline words that have Strong's numbers</label>
-        <label className="row"><input type="checkbox" checked={settings.showMarginNotes} onChange={(e) => updateSettings({ showMarginNotes: e.target.checked })} /> Show the 1611 translators' margin notes</label>
-      </section>
+      <AppearanceSettings />
+      <TranslationSettings />
       <section className="card stack">
         <h2>AI study assistant (optional)</h2>
         <label className="row"><input type="checkbox" checked={settings.aiEnabled} onChange={(e) => updateSettings({ aiEnabled: e.target.checked })} /> Turn on the AI assistant</label>
@@ -501,5 +485,191 @@ export function SourcesPage() {
         <ScriptureRef r={parseOsis('John.3.16')!}>{formatRef(parseOsis('John.3.16')!)}</ScriptureRef>.
       </p>
     </div>
+  )
+}
+
+/* ================= Appearance ================= */
+
+function AppearanceSettings() {
+  const { settings, updateSettings } = useStudy()
+  const sf = SCRIPTURE_FONTS.find((f) => f.id === settings.scriptureFont) ?? SCRIPTURE_FONTS[0]
+  const uf = UI_FONTS.find((f) => f.id === settings.uiFont) ?? UI_FONTS[0]
+  return (
+    <section className="card stack" aria-labelledby="appearance-h">
+      <div className="row">
+        <h2 id="appearance-h" style={{ margin: 0 }}>Appearance</h2>
+        <span className="spacer" />
+        <button
+          className="btn sm"
+          onClick={() =>
+            updateSettings({
+              theme: DEFAULTS.theme, accent: DEFAULTS.accent, tone: DEFAULTS.tone, scriptureFont: DEFAULTS.scriptureFont,
+              uiFont: DEFAULTS.uiFont, lineSpacing: DEFAULTS.lineSpacing, readerSize: DEFAULTS.readerSize, uiSize: DEFAULTS.uiSize,
+            })
+          }
+        >
+          Reset to default
+        </button>
+      </div>
+
+      <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+        <legend style={{ fontWeight: 600, marginBottom: 6 }}>View</legend>
+        <div className="choice-grid">
+          {([
+            ['light', 'Daylight', '☀', 'Light background'],
+            ['dark', 'Dark', '☾', 'Easy on the eyes at night'],
+            ['system', 'Match my device', '◐', 'Follows your phone or computer'],
+          ] as const).map(([id, label, icon, hint]) => (
+            <button key={id} className="choice" aria-pressed={settings.theme === id} onClick={() => updateSettings({ theme: id })}>
+              <span style={{ fontSize: 22 }} aria-hidden>{icon}</span>
+              <strong>{label}</strong>
+              <span className="muted small">{hint}</span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+        <legend style={{ fontWeight: 600, marginBottom: 6 }}>Color theme</legend>
+        <div className="choice-grid">
+          {ACCENTS.map((a) => (
+            <button key={a.id} className="choice" aria-pressed={settings.accent === a.id} onClick={() => updateSettings({ accent: a.id })}>
+              <span className="row" style={{ gap: 4 }}>
+                <span className="dot" style={{ background: a.light }} aria-hidden />
+                <span className="dot" style={{ background: a.dark }} aria-hidden />
+              </span>
+              <strong>{a.label}</strong>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset style={{ border: 'none', padding: 0, margin: 0 }}>
+        <legend style={{ fontWeight: 600, marginBottom: 6 }}>Page color (Daylight view)</legend>
+        <div className="choice-grid">
+          {TONES.map((t) => (
+            <button key={t.id} className="choice" aria-pressed={settings.tone === t.id} onClick={() => updateSettings({ tone: t.id })}>
+              <span className="dot" style={{ background: t.swatch }} aria-hidden />
+              <strong>{t.label}</strong>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="grid-2">
+        <label className="field">
+          <span>Bible text font</span>
+          <select value={sf.id} onChange={(e) => updateSettings({ scriptureFont: e.target.value })}>
+            {SCRIPTURE_FONTS.map((f) => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+          </select>
+          {sf.note && <span className="small" style={{ fontWeight: 400 }}>{sf.note}</span>}
+        </label>
+        <label className="field">
+          <span>App font (menus, notes, tools)</span>
+          <select value={uf.id} onChange={(e) => updateSettings({ uiFont: e.target.value })}>
+            {UI_FONTS.map((f) => (
+              <option key={f.id} value={f.id}>{f.label}</option>
+            ))}
+          </select>
+          {uf.note && <span className="small" style={{ fontWeight: 400 }}>{uf.note}</span>}
+        </label>
+        <label className="field">
+          <span>Bible text size: {settings.readerSize}px</span>
+          <input type="range" min={14} max={32} value={settings.readerSize} onChange={(e) => updateSettings({ readerSize: parseInt(e.target.value, 10) })} />
+        </label>
+        <label className="field">
+          <span>App text size: {settings.uiSize}px</span>
+          <input type="range" min={13} max={20} value={settings.uiSize} onChange={(e) => updateSettings({ uiSize: parseInt(e.target.value, 10) })} />
+        </label>
+        <label className="field">
+          <span>Line spacing</span>
+          <select value={settings.lineSpacing} onChange={(e) => updateSettings({ lineSpacing: e.target.value })}>
+            {LINE_SPACING.map((l) => (
+              <option key={l.id} value={l.id}>{l.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div>
+        <div className="muted small" style={{ marginBottom: 4 }}>Preview</div>
+        <div className="card" style={{ background: 'var(--bg)' }}>
+          <div className={`reader ${settings.redLetters ? 'red-on' : ''}`} style={{ padding: 0, margin: 0 }}>
+            <span className="verse vline">
+              <span className="vnum">16</span>
+              <span className="red">For God so <span className="w sel">loved</span> the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.</span>
+            </span>
+          </div>
+          <div className="row" style={{ marginTop: 10 }}>
+            <button className="btn sm primary">Study this passage</button>
+            <span className="badge source">Strong's G25</span>
+            <a className="reflink" href="#" onClick={(e) => e.preventDefault()}>John 3:16</a>
+          </div>
+        </div>
+      </div>
+
+      <div className="stack" style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+        <label className="row"><input type="checkbox" checked={settings.redLetters} onChange={(e) => updateSettings({ redLetters: e.target.checked })} /> Show the words of Jesus in red</label>
+        <label className="row"><input type="checkbox" checked={settings.showTagged} onChange={(e) => updateSettings({ showTagged: e.target.checked })} /> Underline words that have Strong's numbers</label>
+        <label className="row"><input type="checkbox" checked={settings.showMarginNotes} onChange={(e) => updateSettings({ showMarginNotes: e.target.checked })} /> Show the 1611 translators' margin notes</label>
+      </div>
+    </section>
+  )
+}
+
+/* ================= Translations ================= */
+
+function TranslationSettings() {
+  const { settings, updateSettings } = useStudy()
+  const { data, error, loading } = useAsync(loadTranslationIndex, [])
+  return (
+    <section className="card stack" aria-labelledby="tr-h">
+      <h2 id="tr-h" style={{ margin: 0 }}>Bible translations</h2>
+      <p className="small" style={{ margin: 0 }}>
+        Choose what the Bible reader shows. The KJV carries the Strong's word tagging, so word study, italics, and margin notes use the KJV.
+        Other translations are for reading and comparing. Copy uses the translation you are reading; studies and sermons quote the KJV.
+      </p>
+      {loading && <Loading />}
+      {error && <ErrorBox error={error} />}
+      {data && (
+        <>
+          <div className="grid-2">
+            <label className="field">
+              <span>Read in</span>
+              <select value={settings.translation} onChange={(e) => updateSettings({ translation: e.target.value })}>
+                <option value="KJV">King James Version (KJV) with Strong's</option>
+                {data.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Compare with (shown under each verse)</span>
+              <select value={settings.compareWith} onChange={(e) => updateSettings({ compareWith: e.target.value })}>
+                <option value="">Off</option>
+                <option value="KJV">King James Version (KJV)</option>
+                {data.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.id})</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <ul className="list">
+            <li>
+              <strong>KJV</strong> King James Version (1769) <span className="badge source">Strong's tagged</span>
+              <div className="muted small">Public domain. CrossWire Bible Society text.</div>
+            </li>
+            {data.map((t) => (
+              <li key={t.id}>
+                <strong>{t.id}</strong> {t.name} ({t.year})
+                <div className="muted small">{t.note} {t.license}.</div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
   )
 }

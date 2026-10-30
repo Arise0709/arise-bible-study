@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import { Bookmark, BookOpen, ChevronLeft, ChevronRight, Copy, Highlighter, Link2, NotebookPen, Plus, StickyNote, X } from 'lucide-react'
-import { FLAG_ADDED, FLAG_DIVINE, FLAG_RED, loadBook, loadBookIndex, parseWord, segText, verseText, type Book, type Segment, type Verse } from '../lib/data'
+import { FLAG_ADDED, FLAG_DIVINE, FLAG_RED, loadBook, loadBookIndex, loadTranslationBook, loadTranslationIndex, parseWord, segText, verseText, type Book, type Segment, type Verse } from '../lib/data'
 import { BOOKS, BOOK_BY_ID, BOOK_INDEX, formatRef, toOsis, type Ref } from '../lib/refs'
 import { useStudy, useStudySink } from '../lib/state'
 import { db, emptyWorksheet, uid, type VerseNote } from '../db/db'
@@ -32,6 +32,16 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const ch = bookData?.chapters[chapter - 1]
+  const { data: tIndex } = useAsync(() => loadTranslationIndex().catch(() => []), [])
+  const primary = settings.translation !== 'KJV' && tIndex?.some((t) => t.id === settings.translation) ? settings.translation : 'KJV'
+  const compare = settings.compareWith && settings.compareWith !== primary ? settings.compareWith : ''
+  const { data: primaryBook, error: primaryErr } = useAsync(() => (primary === 'KJV' ? Promise.resolve(null) : loadTranslationBook(primary, book)), [primary, book])
+  const { data: compareBook, error: compareErr } = useAsync(
+    () => (!compare ? Promise.resolve(null) : compare === 'KJV' ? Promise.resolve(null) : loadTranslationBook(compare, book)),
+    [compare, book],
+  )
+  const altVerse = (bk: (string | null)[][] | null | undefined, v: number) => bk?.[chapter - 1]?.[v - 1] ?? null
+  const extraVerses = primaryBook ? (primaryBook[chapter - 1] ?? []).map((t, i) => ({ v: i + 1, t })).filter((x) => x.t && !ch?.verses.some((kv) => kv.v === x.v)) : []
   const chapterTotal = index?.find((b) => b.id === book)?.chapters.length ?? bookData?.chapters.length ?? 0
 
   const highlights = useLiveQuery(() => db.highlights.where('book').equals(book).toArray(), [book]) ?? []
@@ -125,9 +135,10 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
 
   const copy = async () => {
     if (!selRef) return
-    const text = selectedVerses.length === 1 ? verseText(selectedVerses[0]) : selectedVerses.map((v) => `${v.v} ${verseText(v)}`).join(' ')
+    const vt = (v: Verse) => (primary === 'KJV' ? verseText(v) : altVerse(primaryBook, v.v) ?? '')
+    const text = selectedVerses.length === 1 ? vt(selectedVerses[0]) : selectedVerses.map((v) => `${v.v} ${vt(v)}`).join(' ')
     try {
-      await navigator.clipboard.writeText(`${text}\n${formatRef(selRef)} (KJV)`)
+      await navigator.clipboard.writeText(`${text}\n${formatRef(selRef)} (${primary})`)
       toast('Copied with reference')
     } catch {
       toast('Copy is blocked by this browser')
@@ -177,6 +188,22 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
         <button className="iconbtn" onClick={() => go(1)} aria-label="Next chapter" title="Next chapter ( ] )">
           <ChevronRight size={18} />
         </button>
+        <label className="sr-only" htmlFor={`tr-${inPanel ? 'p' : 'm'}`}>Translation</label>
+        <select id={`tr-${inPanel ? 'p' : 'm'}`} value={primary} onChange={(e) => updateSettings({ translation: e.target.value })} title="Translation" style={{ maxWidth: 110 }}>
+          <option value="KJV">KJV</option>
+          {tIndex?.map((t) => (
+            <option key={t.id} value={t.id}>{t.id}</option>
+          ))}
+        </select>
+        <label className="sr-only" htmlFor={`cmp-${inPanel ? 'p' : 'm'}`}>Compare with</label>
+        <select id={`cmp-${inPanel ? 'p' : 'm'}`} value={compare} onChange={(e) => updateSettings({ compareWith: e.target.value })} title="Compare with another translation" style={{ maxWidth: 130 }}>
+          <option value="">Compare…</option>
+          {['KJV', ...(tIndex?.map((t) => t.id) ?? [])]
+            .filter((id) => id !== primary)
+            .map((id) => (
+              <option key={id} value={id}>vs {id}</option>
+            ))}
+        </select>
         <span className="spacer" />
         <button className="iconbtn" aria-pressed={settings.showTagged} onClick={() => updateSettings({ showTagged: !settings.showTagged })} title="Underline words with Strong's numbers" aria-label="Underline words with Strong's numbers">
           <Link2 size={17} />
@@ -207,11 +234,18 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
         </div>
       )}
       {ch && bookData && (
-        <article className={`reader ${settings.redLetters ? 'red-on' : ''} ${settings.showTagged ? 'show-tags' : ''}`} aria-label={`${bookData.name} chapter ${chapter}, King James Version`}>
+        <article className={`reader ${settings.redLetters ? 'red-on' : ''} ${settings.showTagged ? 'show-tags' : ''}`} aria-label={`${bookData.name} chapter ${chapter}, ${primary === 'KJV' ? 'King James Version' : tIndex?.find((t) => t.id === primary)?.name ?? primary}`}>
           <h1 className="chapter-title">
             {bookData.name.toUpperCase()} {chapter}
+            {primary !== 'KJV' && <span className="muted" style={{ fontSize: '0.75em' }}> · {primary}</span>}
           </h1>
-          {ch.title && (
+          {primary !== 'KJV' && (
+            <div className="notice info" style={{ fontFamily: 'var(--ui-font)', fontSize: 'calc(var(--ui-size) * 0.85)', marginBottom: 12, lineHeight: 1.45 }}>
+              {tIndex?.find((t) => t.id === primary)?.name}. To click words for Hebrew and Greek, switch to KJV. Notes and highlights work in every translation.
+            </div>
+          )}
+          {(primaryErr || compareErr) && <ErrorBox error={(primaryErr ?? compareErr)!} />}
+          {ch.title && primary === 'KJV' && (
             <p className="psalm-title">
               <Segments segs={ch.title} verse={null} book={book} chapter={chapter} />
             </p>
@@ -228,7 +262,11 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
                   <button className="vnum" onClick={(e) => onVerseNum(v.v, e.shiftKey)} aria-label={`Select verse ${v.v}`} aria-pressed={!!isSel}>
                     {v.v}
                   </button>
-                  <Segments segs={v.s} verse={v} book={book} chapter={chapter} selection={selection} onSelect={select} />
+                  {primary === 'KJV' ? (
+                    <Segments segs={v.s} verse={v} book={book} chapter={chapter} selection={selection} onSelect={select} />
+                  ) : (
+                    <span>{altVerse(primaryBook, v.v) ?? (primaryBook ? <em className="muted">(This verse is not in the {primary}.)</em> : '')}</span>
+                  )}
                   {(bmSet.has(key) || vnotes.length > 0) && (
                     <span className="vmarks" aria-label={`${bmSet.has(key) ? 'Bookmarked. ' : ''}${vnotes.length ? vnotes.length + ' note(s)' : ''}`}>
                       {bmSet.has(key) && <Bookmark size={11} aria-hidden />}
@@ -248,7 +286,13 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
                       )}
                     </span>
                   )}
-                  {settings.showMarginNotes &&
+                  {compare && (
+                    <span className="compare-line">
+                      <span className="tag">{compare}</span>
+                      {compare === 'KJV' ? verseText(v) : altVerse(compareBook, v.v) ?? <em>(not in this translation)</em>}
+                    </span>
+                  )}
+                  {primary === 'KJV' && settings.showMarginNotes &&
                     v.n?.map((n, i) => (
                       <span key={i} className="marg-note">
                         <em>{n[0]}</em>: {n[1]} <span className="badge" title="Marginal note carried in the KJV source">margin</span>
@@ -258,11 +302,16 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
               </Fragment>
             )
           })}
+          {extraVerses.map((x) => (
+            <span key={`x${x.v}`} className="verse vline">
+              <span className="vnum" style={{ cursor: 'default' }}>{x.v}</span> {x.t}
+            </span>
+          ))}
           <div className="row no-print" style={{ justifyContent: 'space-between', marginTop: 24, fontFamily: 'var(--ui-font)', fontSize: 'var(--ui-size)' }}>
             <button className="btn" onClick={() => go(-1)}>
               <ChevronLeft size={16} /> Previous
             </button>
-            <span className="muted small">KJV · Strong's tagging from CrossWire</span>
+            <span className="muted small">{primary === 'KJV' ? "KJV · Strong's tagging from CrossWire" : `${tIndex?.find((t) => t.id === primary)?.name} (${tIndex?.find((t) => t.id === primary)?.license})`}</span>
             <button className="btn" onClick={() => go(1)}>
               Next <ChevronRight size={16} />
             </button>

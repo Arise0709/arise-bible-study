@@ -6,6 +6,48 @@
    "name": "King James Version",
    "path": "kjv/",
    "source": "kjv"
+  },
+  {
+   "id": "BSB",
+   "name": "Berean Standard Bible",
+   "path": "translations/BSB/",
+   "source": "BSB"
+  },
+  {
+   "id": "NHEB",
+   "name": "New Heart English Bible",
+   "path": "translations/NHEB/",
+   "source": "NHEB"
+  },
+  {
+   "id": "ASV",
+   "name": "American Standard Version",
+   "path": "translations/ASV/",
+   "source": "ASV"
+  },
+  {
+   "id": "YLT",
+   "name": "Young's Literal Translation",
+   "path": "translations/YLT/",
+   "source": "YLT"
+  },
+  {
+   "id": "WBS",
+   "name": "Webster Bible",
+   "path": "translations/WBS/",
+   "source": "WBS"
+  },
+  {
+   "id": "BBE",
+   "name": "Bible in Basic English",
+   "path": "translations/BBE/",
+   "source": "BBE"
+  },
+  {
+   "id": "GNV",
+   "name": "Geneva Bible",
+   "path": "translations/GNV/",
+   "source": "GNV"
   }
  ],
  "sources": [
@@ -143,6 +185,111 @@
    "attribution": "Editorial list written for this app. Not a published reference work.",
    "notes": "Short modern equivalents for common archaic KJV words. Every sample verse is checked at build time to exist and contain the word. Verify meanings against Webster 1913 and ISBE entries linked beside each item.",
    "sha256": {}
+  },
+  {
+   "id": "BSB",
+   "kind": "translation",
+   "name": "Berean Standard Bible (2023)",
+   "provider": "scrollmapper/bible_databases",
+   "url": "https://github.com/scrollmapper/bible_databases",
+   "file": "scrollmapper/bible_databases formats/json/BSB.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+   "version": "git 59b18c5af5845728c275d5b7178ad0d024172b1f",
+   "license": "CC0 1.0 (public domain dedication)",
+   "attribution": "Berean Standard Bible text from the scrollmapper bible_databases collection.",
+   "notes": "Modern English translation. Plain text for reading and comparison; Strong's word study uses the KJV.",
+   "sha256": {
+    "formats/json/BSB.json": "cec3c644088a8ef4a50cf1e2de035f79d8825f394625d116bb7ee7e1d57739c9"
+   }
+  },
+  {
+   "id": "NHEB",
+   "kind": "translation",
+   "name": "New Heart English Bible (2010s)",
+   "provider": "scrollmapper/bible_databases",
+   "url": "https://github.com/scrollmapper/bible_databases",
+   "file": "scrollmapper/bible_databases formats/json/NHEB.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+   "version": "git 59b18c5af5845728c275d5b7178ad0d024172b1f",
+   "license": "Public domain",
+   "attribution": "New Heart English Bible text from the scrollmapper bible_databases collection.",
+   "notes": "Modern English, based on the World English Bible. Plain text for reading and comparison; Strong's word study uses the KJV.",
+   "sha256": {
+    "formats/json/NHEB.json": "45c42baa7053244f244aed3fe89214dc10c13c70ffec6338b8d2d01087c7f6d4"
+   }
+  },
+  {
+   "id": "ASV",
+   "kind": "translation",
+   "name": "American Standard Version (1901)",
+   "provider": "scrollmapper/bible_databases",
+   "url": "https://github.com/scrollmapper/bible_databases",
+   "file": "scrollmapper/bible_databases formats/json/ASV.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+   "version": "git 59b18c5af5845728c275d5b7178ad0d024172b1f",
+   "license": "Public domain",
+   "attribution": "American Standard Version text from the scrollmapper bible_databases collection.",
+   "notes": "Revision of the KJV tradition; renders the divine name as Jehovah. Plain text for reading and comparison; Strong's word study uses the KJV.",
+   "sha256": {
+    "formats/json/ASV.json": "602445e22c280a682ac4c489117ead179271f5ee50a78ee4531b249c71e7ce99"
+   }
+  },
+  {
+   "id": "YLT",
+   "kind": "translation",
+   "name": "Young's Literal Translation (1898)",
+   "provider": "scrollmapper/bible_databases",
+   "url": "https://github.com/scrollmapper/bible_databases",
+   "file": "scrollmapper/bible_databases formats/json/YLT.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+   "version": "git 59b18c5af5845728c275d5b7178ad0d024172b1f",
+   "license": "Public domain",
+   "attribution": "Young's Literal Translation text from the scrollmapper bible_databases collection.",
+   "notes": "Very literal; helpful for seeing Hebrew and Greek word order and tense. Plain text for reading and comparison; Strong's word study uses the KJV.",
+   "sha256": {
+    "formats/json/YLT.json": "d55ef42dae715c4fc5d00049011b818a42a99e0ff419f5f08bc37cea0b4f12e3"
+   }
+  },
+  {
+   "id": "WBS",
+   "kind": "translation",
+   "name": "Webster Bible (1833)",
+   "provider": "scrollmapper/bible_databases",
+   "url": "https://github.com/scrollmapper/bible_databases",
+   "file": "scrollmapper/bible_databases formats/json/Webster.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+   "version": "git 59b18c5af5845728c275d5b7178ad0d024172b1f",
+   "license": "Public domain",
+   "attribution": "Webster Bible text from the scrollmapper bible_databases collection.",
+   "notes": "Noah Webster's light revision of the KJV. Words in [brackets] were supplied by the translator. Plain text for reading and comparison; Strong's word study uses the KJV.",
+   "sha256": {
+    "formats/json/Webster.json": "21d32fca7a463385a5049aca0894318fd60396211be72fd8e8ee9ed76bd6355e"
+   }
+  },
+  {
+   "id": "BBE",
+   "kind": "translation",
+   "name": "Bible in Basic English (1949/1964)",
+   "provider": "scrollmapper/bible_databases",
+   "url": "https://github.com/scrollmapper/bible_databases",
+   "file": "scrollmapper/bible_databases formats/json/BBE.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+   "version": "git 59b18c5af5845728c275d5b7178ad0d024172b1f",
+   "license": "Public domain (United States)",
+   "attribution": "Bible in Basic English text from the scrollmapper bible_databases collection.",
+   "notes": "Uses a limited English vocabulary for clarity. Plain text for reading and comparison; Strong's word study uses the KJV.",
+   "sha256": {
+    "formats/json/BBE.json": "2396c027cfd1c47c9bb325c5c1ed1b1c125b95ef4c5382ddba4f8e50651f8068"
+   }
+  },
+  {
+   "id": "GNV",
+   "kind": "translation",
+   "name": "Geneva Bible (1599)",
+   "provider": "scrollmapper/bible_databases",
+   "url": "https://github.com/scrollmapper/bible_databases",
+   "file": "scrollmapper/bible_databases formats/json/Geneva1599.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+   "version": "git 59b18c5af5845728c275d5b7178ad0d024172b1f",
+   "license": "Public domain",
+   "attribution": "Geneva Bible text from the scrollmapper bible_databases collection.",
+   "notes": "The Reformation-era English Bible that preceded the KJV. Original spelling. Plain text for reading and comparison; Strong's word study uses the KJV.",
+   "sha256": {
+    "formats/json/Geneva1599.json": "7a9bb411247d382e6737a95fcdca3087c29da396e55e126d3e36d18c53ab1e6d"
+   }
   }
  ],
  "integrity": {

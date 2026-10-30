@@ -1,0 +1,79 @@
+[
+ {
+  "id": "BSB",
+  "name": "Berean Standard Bible",
+  "year": "2023",
+  "license": "CC0 1.0 (public domain dedication)",
+  "note": "Modern English translation.",
+  "verses": 31102,
+  "source": "scrollmapper/bible_databases formats/json/BSB.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+  "url": "https://github.com/scrollmapper/bible_databases",
+  "sha256": "cec3c644088a8ef4a50cf1e2de035f79d8825f394625d116bb7ee7e1d57739c9"
+ },
+ {
+  "id": "NHEB",
+  "name": "New Heart English Bible",
+  "year": "2010s",
+  "license": "Public domain",
+  "note": "Modern English, based on the World English Bible.",
+  "verses": 31104,
+  "source": "scrollmapper/bible_databases formats/json/NHEB.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+  "url": "https://github.com/scrollmapper/bible_databases",
+  "sha256": "45c42baa7053244f244aed3fe89214dc10c13c70ffec6338b8d2d01087c7f6d4"
+ },
+ {
+  "id": "ASV",
+  "name": "American Standard Version",
+  "year": "1901",
+  "license": "Public domain",
+  "note": "Revision of the KJV tradition; renders the divine name as Jehovah.",
+  "verses": 31102,
+  "source": "scrollmapper/bible_databases formats/json/ASV.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+  "url": "https://github.com/scrollmapper/bible_databases",
+  "sha256": "602445e22c280a682ac4c489117ead179271f5ee50a78ee4531b249c71e7ce99"
+ },
+ {
+  "id": "YLT",
+  "name": "Young's Literal Translation",
+  "year": "1898",
+  "license": "Public domain",
+  "note": "Very literal; helpful for seeing Hebrew and Greek word order and tense.",
+  "verses": 31102,
+  "source": "scrollmapper/bible_databases formats/json/YLT.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+  "url": "https://github.com/scrollmapper/bible_databases",
+  "sha256": "d55ef42dae715c4fc5d00049011b818a42a99e0ff419f5f08bc37cea0b4f12e3"
+ },
+ {
+  "id": "WBS",
+  "name": "Webster Bible",
+  "year": "1833",
+  "license": "Public domain",
+  "note": "Noah Webster's light revision of the KJV. Words in [brackets] were supplied by the translator.",
+  "verses": 31102,
+  "source": "scrollmapper/bible_databases formats/json/Webster.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+  "url": "https://github.com/scrollmapper/bible_databases",
+  "sha256": "21d32fca7a463385a5049aca0894318fd60396211be72fd8e8ee9ed76bd6355e"
+ },
+ {
+  "id": "BBE",
+  "name": "Bible in Basic English",
+  "year": "1949/1964",
+  "license": "Public domain (United States)",
+  "note": "Uses a limited English vocabulary for clarity.",
+  "verses": 31102,
+  "source": "scrollmapper/bible_databases formats/json/BBE.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+  "url": "https://github.com/scrollmapper/bible_databases",
+  "sha256": "2396c027cfd1c47c9bb325c5c1ed1b1c125b95ef4c5382ddba4f8e50651f8068"
+ },
+ {
+  "id": "GNV",
+  "name": "Geneva Bible",
+  "year": "1599",
+  "license": "Public domain",
+  "note": "The Reformation-era English Bible that preceded the KJV. Original spelling.",
+  "verses": 31104,
+  "source": "scrollmapper/bible_databases formats/json/Geneva1599.json (git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
+  "url": "https://github.com/scrollmapper/bible_databases",
+  "sha256": "7a9bb411247d382e6737a95fcdca3087c29da396e55e126d3e36d18c53ab1e6d"
+ }
+]

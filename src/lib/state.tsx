@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getSetting, setSetting } from '../db/db'
+import { applyAppearance } from './appearance'
 
 export interface WordSelection {
   book: string
@@ -15,13 +16,36 @@ export type ToolTab = 'word' | 'dictionary' | 'thesaurus' | 'xrefs' | 'notes' | 
 export interface Settings {
   theme: 'system' | 'light' | 'dark'
   readerSize: number
+  uiSize: number
+  accent: string
+  tone: string
+  scriptureFont: string
+  uiFont: string
+  lineSpacing: string
+  translation: string // primary translation in the reader ('KJV' or an id from translations/index.json)
+  compareWith: string // second translation shown under each verse, '' for none
   redLetters: boolean
   showMarginNotes: boolean
   showTagged: boolean
   aiEnabled: boolean
 }
 
-const DEFAULTS: Settings = { theme: 'system', readerSize: 19, redLetters: true, showMarginNotes: false, showTagged: false, aiEnabled: false }
+export const DEFAULTS: Settings = {
+  theme: 'system',
+  readerSize: 19,
+  uiSize: 15,
+  accent: 'teal',
+  tone: 'warm',
+  scriptureFont: 'literata',
+  uiFont: 'inter',
+  lineSpacing: 'normal',
+  translation: 'KJV',
+  compareWith: '',
+  redLetters: true,
+  showMarginNotes: false,
+  showTagged: false,
+  aiEnabled: false,
+}
 
 interface Ctx {
   selection: WordSelection | null
@@ -61,12 +85,11 @@ export function StudyProvider({ children }: { children: ReactNode }) {
     getSetting<Partial<Settings>>('settings', {}).then((s) => setSettings((cur) => ({ ...cur, ...s })))
   }, [])
 
-  useEffect(() => {
-    const root = document.documentElement
-    if (settings.theme === 'system') root.removeAttribute('data-theme')
-    else root.setAttribute('data-theme', settings.theme)
-    root.style.setProperty('--reader-size', `${settings.readerSize}px`)
-  }, [settings.theme, settings.readerSize])
+  useEffect(
+    () => applyAppearance(settings),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings.theme, settings.readerSize, settings.uiSize, settings.accent, settings.tone, settings.scriptureFont, settings.uiFont, settings.lineSpacing],
+  )
 
   const updateSettings = useCallback((p: Partial<Settings>) => {
     setSettings((cur) => {

@@ -20,7 +20,9 @@ The core workflow:
 - **Saved Studies:** your studies, verse notes, bookmarks, and recent places, with "pick up where you left off".
 - **Optional AI assistant:** off by default. See below.
 
-Light and dark mode, adjustable text size, keyboard navigation (`/` search, `[` `]` chapters, `?` help), and layouts for desktop, tablet, and phone.
+**Settings → Appearance:** Daylight, Dark, or match your device; six color themes (including Arise gold); warm, white, or sepia pages; seven Bible fonts and four app fonts; text size and line spacing, with a live preview. **Settings → Bible translations:** read in the KJV (with Strong's) or BSB, NHEB, ASV, YLT, Webster 1833, BBE, or Geneva 1599, and show a second translation under each verse to compare.
+
+Also: adjustable text size, keyboard navigation (`/` search, `[` `]` chapters, `?` help), and layouts for desktop, tablet, and phone.
 
 ## Data sources and licensing
 
@@ -36,6 +38,7 @@ Every verse, Strong's entry, cross-reference, and dictionary article comes from 
 | Bible names | Hitchcock's Bible Names (1869), via CrossWire | Public domain |
 | Older English definitions | Webster's 1913, via CrossWire | Public domain |
 | Modern synonyms and antonyms | WordNet 3.1 | WordNet License |
+| Other translations for reading and comparing: BSB, NHEB, ASV, YLT, Webster (1833), BBE, Geneva (1599) | scrollmapper/bible_databases (pinned commit) | BSB is CC0; the rest are public domain |
 | Archaic word modern equivalents | App editorial list (`scripts/editorial/archaic.json`) | App content, labeled in the UI |
 
 Notes:

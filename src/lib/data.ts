@@ -295,3 +295,24 @@ export function lemmaCandidates(word: string): string[] {
   }
   return [...c]
 }
+
+/* ---------------- Other translations (plain text) ---------------- */
+
+export interface TranslationInfo {
+  id: string
+  name: string
+  year: string
+  license: string
+  note: string
+  verses: number
+}
+
+export function loadTranslationIndex(): Promise<TranslationInfo[]> {
+  return getJson<TranslationInfo[]>('translations/index.json', 'the list of translations')
+}
+
+export async function loadTranslationBook(id: string, book: string): Promise<(string | null)[][]> {
+  const name = BOOKS.find((b) => b.id === book)?.name ?? book
+  const d = await getJson<{ c: (string | null)[][] }>(`translations/${id}/${book}.json`, `${name} in ${id}`)
+  return d.c
+}
