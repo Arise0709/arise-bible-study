@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Group, Panel, Separator } from 'react-resizable-panels'
@@ -6,7 +6,7 @@ import { BookOpen, Download, FileText, Mic, Plus, Trash2 } from 'lucide-react'
 import { Reader } from '../components/Reader'
 import { ToolsPane } from '../components/ToolsPane'
 import { BlockLegend, BlockList, TranslationSelect, retranslateBlocks } from '../components/Blocks'
-import { Dialog, Empty, ErrorBox, Loading, downloadBlob, slug, timeAgo, toast, useAsync, useMediaQuery } from '../components/ui'
+import { Dialog, Empty, ErrorBox, Loading, SaveIndicator, downloadBlob, slug, timeAgo, toast, useAsync, useMediaQuery } from '../components/ui'
 import { LinkedText } from '../components/Scripture'
 import { getPassage, passageToText } from '../lib/data'
 import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
@@ -14,6 +14,7 @@ import { StudySinkCtx, quoteTr, useStudy, type StudySink } from '../lib/state'
 import { WORKSHEET_SECTIONS, db, emptyWorksheet, recordSession, uid, type Block, type Study, type WorksheetKey } from '../db/db'
 import { pdfExport, studyToDoc, toMarkdown, wordExport } from '../export/doc'
 import { createSermonFromStudy } from './sermonTemplates'
+import { useAutosave } from '../lib/autosave'
 
 export function StudyStart() {
   const nav = useNavigate()
@@ -89,13 +90,12 @@ export function WorkspacePage() {
 
 function Workspace({ initial }: { initial: Study }) {
   const [study, setStudy] = useState<Study>(initial)
-  const [saved, setSaved] = useState<'saved' | 'saving' | 'error'>('saved')
   const passage = parseOsis(study.passage)
   const [loc, setLoc] = useState({ book: passage?.book ?? 'John', chapter: passage?.chapter ?? 1, verse: passage?.verse })
   const wide = useMediaQuery('(min-width: 901px)')
   const [mobileTab, setMobileTab] = useState<'scripture' | 'tools' | 'notes'>('scripture')
   const { selection, toolsOpen } = useStudy()
-  const dirty = useRef(false)
+  const autosave = useAutosave(study, (v: Study) => db.studies.put({ ...v, updatedAt: Date.now() }), `studies:${initial.id}`)
 
   useEffect(() => {
     recordSession('study', `/study/${study.id}`, study.title)
@@ -110,21 +110,7 @@ function Workspace({ initial }: { initial: Study }) {
     if (!wide && toolsOpen) setMobileTab('tools')
   }, [toolsOpen, wide])
 
-  // autosave
-  useEffect(() => {
-    if (!dirty.current) return
-    setSaved('saving')
-    const t = setTimeout(() => {
-      db.studies
-        .put({ ...study, updatedAt: Date.now() })
-        .then(() => setSaved('saved'))
-        .catch(() => setSaved('error'))
-    }, 600)
-    return () => clearTimeout(t)
-  }, [study])
-
   const update = useCallback((fn: (s: Study) => Study) => {
-    dirty.current = true
     setStudy((s) => fn(s))
   }, [])
 
@@ -138,7 +124,7 @@ function Workspace({ initial }: { initial: Study }) {
   )
 
   const reader = <Reader inPanel book={loc.book} chapter={loc.chapter} target={loc.verse} onNavigate={(b, c, v) => setLoc({ book: b, chapter: c, verse: v })} />
-  const sheet = <Worksheet study={study} update={update} saved={saved} onGoToPassage={() => passage && setLoc({ book: passage.book, chapter: passage.chapter, verse: passage.verse })} />
+  const sheet = <Worksheet study={study} update={update} autosave={autosave} onGoToPassage={() => passage && setLoc({ book: passage.book, chapter: passage.chapter, verse: passage.verse })} />
 
   return (
     <StudySinkCtx.Provider value={sink}>
@@ -176,7 +162,7 @@ function Workspace({ initial }: { initial: Study }) {
   )
 }
 
-function Worksheet({ study, update, saved, onGoToPassage }: { study: Study; update: (fn: (s: Study) => Study) => void; saved: string; onGoToPassage: () => void }) {
+function Worksheet({ study, update, autosave, onGoToPassage }: { study: Study; update: (fn: (s: Study) => Study) => void; autosave: ReturnType<typeof useAutosave<Study>>; onGoToPassage: () => void }) {
   const nav = useNavigate()
   const passage = parseOsis(study.passage)
   const tr = study.translation ?? 'KJV'
@@ -215,7 +201,7 @@ function Worksheet({ study, update, saved, onGoToPassage }: { study: Study; upda
     <div className="panel" aria-label="Study notes">
       <div className="reader-head">
         <strong>Guided breakdown</strong>
-        <span className="save-state" aria-live="polite">{saved === 'saving' ? 'Saving…' : saved === 'error' ? 'Not saved' : 'Saved'}</span>
+        <SaveIndicator autosave={autosave} />
         <span className="spacer" />
         <button className="btn sm" onClick={() => exportAs('md')} title="Export Markdown"><Download size={14} /> .md</button>
         <button className="btn sm" onClick={() => exportAs('docx')} title="Export Word"><FileText size={14} /> .docx</button>
@@ -332,6 +318,7 @@ function Worksheet({ study, update, saved, onGoToPassage }: { study: Study; upda
           <button
             className="btn primary"
             onClick={async () => {
+              autosave.discard()
               await db.studies.delete(study.id)
               nav('/studies')
             }}

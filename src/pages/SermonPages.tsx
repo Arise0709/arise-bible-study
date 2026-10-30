@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy, Download, FileText, FolderPlus, GripVertical, MonitorPlay, Plus, Printer, Trash2 } from 'lucide-react'
 import { BlockLegend, BlockList, BlockView, TranslationSelect, retranslateBlocks } from '../components/Blocks'
-import { Dialog, Empty, ErrorBox, Loading, downloadBlob, slug, timeAgo, toast, useAsync } from '../components/ui'
+import { Dialog, Empty, ErrorBox, Loading, SaveIndicator, downloadBlob, slug, timeAgo, toast, useAsync } from '../components/ui'
 import { LinkedText, ScriptureRef } from '../components/Scripture'
 import { getPassage, passageToText } from '../lib/data'
 import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
@@ -11,6 +11,7 @@ import { quoteTr, useStudy } from '../lib/state'
 import { db, recordSession, uid, type Sermon, type SermonSection } from '../db/db'
 import { pdfExport, sermonToDoc, toMarkdown, wordExport } from '../export/doc'
 import { SECTION_TYPES, TEMPLATES, newSermon } from './sermonTemplates'
+import { useAutosave } from '../lib/autosave'
 
 /* ================= List ================= */
 
@@ -162,13 +163,12 @@ async function exportSermon(s: Sermon, kind: 'md' | 'docx' | 'pdf') {
 function SermonEditor({ initial }: { initial: Sermon }) {
   const nav = useNavigate()
   const [s, setS] = useState(initial)
-  const [state, setState] = useState<'saved' | 'saving' | 'error'>('saved')
   const [passageInput, setPassageInput] = useState(initial.passage && parseOsis(initial.passage) ? formatRef(parseOsis(initial.passage)!) : '')
   const [passageErr, setPassageErr] = useState('')
   const [drag, setDrag] = useState<number | null>(null)
   const [over, setOver] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const dirty = useRef(false)
+  const autosave = useAutosave(s, (v: Sermon) => db.sermons.put({ ...v, updatedAt: Date.now() }), `sermons:${initial.id}`)
   const folders = useLiveQuery(() => db.folders.where('kind').equals('sermon').toArray(), []) ?? []
 
   useEffect(() => {
@@ -178,20 +178,7 @@ function SermonEditor({ initial }: { initial: Sermon }) {
     document.title = `${s.title || 'Untitled'} · Arise Bible Study`
   }, [s.title])
 
-  useEffect(() => {
-    if (!dirty.current) return
-    setState('saving')
-    const t = setTimeout(() => {
-      db.sermons
-        .put({ ...s, updatedAt: Date.now() })
-        .then(() => setState('saved'))
-        .catch(() => setState('error'))
-    }, 600)
-    return () => clearTimeout(t)
-  }, [s])
-
   const up = (p: Partial<Sermon>) => {
-    dirty.current = true
     setS((cur) => ({ ...cur, ...p }))
   }
   const setSection = (i: number, sec: SermonSection) => up({ sections: s.sections.map((x, j) => (j === i ? sec : x)) })
@@ -238,7 +225,7 @@ function SermonEditor({ initial }: { initial: Sermon }) {
     <div className="page stack" style={{ maxWidth: 980 }}>
       <div className="row no-print">
         <Link to="/sermons" className="small">← Sermons &amp; Lessons</Link>
-        <span className="save-state" aria-live="polite">{state === 'saving' ? 'Saving…' : state === 'error' ? 'Could not save' : 'All changes saved'}</span>
+        <SaveIndicator autosave={autosave} />
         <span className="spacer" />
         <Link className="btn" to={`/sermons/${s.id}/teach`}><MonitorPlay size={15} /> Teaching view</Link>
         <Link className="btn" to={`/sermons/${s.id}/teach?print=1`}><Printer size={15} /> Print</Link>
@@ -399,6 +386,7 @@ function SermonEditor({ initial }: { initial: Sermon }) {
           <button
             className="btn primary"
             onClick={async () => {
+              autosave.discard()
               await db.sermons.delete(s.id)
               nav('/sermons')
             }}
