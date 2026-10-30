@@ -5,9 +5,6 @@
 import { db, getSetting, setSetting } from '../db/db'
 import { exportBackup } from '../db/backup'
 
-/** Settings keys that describe this device only; never restored from a backup file. */
-export const DEVICE_ONLY_SETTINGS = ['lastBackupAt', 'backupSnoozeUntil']
-
 export const BACKUP_REMIND_DAYS = 7
 export const BACKUP_SNOOZE_DAYS = 3
 const DAY = 86_400_000

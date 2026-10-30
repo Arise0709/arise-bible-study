@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Bookmark, Clock, Download, NotebookPen, Plus, Trash2, Upload } from 'lucide-react'
+import { Bookmark, Clock, Download, NotebookPen, Plus, Trash2 } from 'lucide-react'
 import { DictEntryEditor, DictionaryPanel, Highlighted, SourceBadge, ThesaurusPanel } from '../components/ReferencePanels'
 import { StrongsCard, StrongsLookup, ContextNote } from '../components/WordPanel'
 import { Empty, ErrorBox, Loading, Tabs, timeAgo, toast, toastUndo, useAsync } from '../components/ui'
@@ -13,9 +13,8 @@ import { onSearchProgress, searchBible, type SearchResult } from '../lib/search'
 import { DEFAULTS, useStudy } from '../lib/state'
 import { ACCENTS, LINE_SPACING, SCRIPTURE_FONTS, TONES, UI_FONTS } from '../lib/appearance'
 import { db } from '../db/db'
-import { importBackup } from '../db/backup'
 import { downloadBackup } from '../lib/dataSafety'
-import { DataProtectionStatus } from '../components/DataSafety'
+import { DataProtectionStatus, RestoreBackup } from '../components/DataSafety'
 
 /* ================= Dictionary ================= */
 
@@ -347,7 +346,6 @@ export function SearchPage() {
 
 export function SettingsPage() {
   const { settings, updateSettings } = useStudy()
-  const fileRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     document.title = 'Settings · Arise Bible Study'
   }, [])
@@ -383,26 +381,7 @@ export function SettingsPage() {
           >
             <Download size={16} /> Download backup
           </button>
-          <button className="btn" onClick={() => fileRef.current?.click()}>
-            <Upload size={16} /> Restore from backup
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={async (e) => {
-              const f = e.target.files?.[0]
-              if (!f) return
-              try {
-                const n = await importBackup(f)
-                toast(`Restored ${n} items`)
-              } catch (err) {
-                toast((err as Error).message)
-              }
-              e.target.value = ''
-            }}
-          />
+          <RestoreBackup />
         </div>
       </section>
       <section className="card stack">

@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useLocation } from 'react-router-dom'
-import { Download, HardDrive, ShieldCheck, ShieldAlert, Smartphone } from 'lucide-react'
+import { Download, HardDrive, ShieldCheck, ShieldAlert, Smartphone, Upload } from 'lucide-react'
 import { db } from '../db/db'
 import {
   canPromptInstall, downloadBackup, formatBackupAge, isIOS, isInstalled, needsBackupReminder, onInstallChange, persistenceState, promptInstall,
   requestPersistence, snoozeBackupReminder, userItemCount, type PersistState,
 } from '../lib/dataSafety'
-import { toast } from './ui'
+import { Dialog, toast } from './ui'
+import { BackupError, TABLE_LABELS, applyBackup, currentCounts, parseBackup, type BackupPreview } from '../db/backup'
 
 function useBackupInfo() {
   const lastAt = useLiveQuery(() => db.settings.get('lastBackupAt').then((s) => (s?.value as number) ?? 0), []) ?? 0
@@ -111,5 +112,164 @@ export function DataProtectionStatus() {
         code. <Link to="/sources">Bible data</Link> is part of the app and is not in backups.
       </p>
     </div>
+  )
+}
+
+/* ---------------- Restore with validation and preview ---------------- */
+
+export function RestoreBackup() {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [preview, setPreview] = useState<BackupPreview | null>(null)
+  const [fileName, setFileName] = useState('')
+  const [current, setCurrent] = useState<Record<string, number> | null>(null)
+  const [mode, setMode] = useState<'merge' | 'replace'>('merge')
+  const [confirmReplace, setConfirmReplace] = useState(false)
+  const [safetyCopy, setSafetyCopy] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const close = () => {
+    setPreview(null)
+    setMode('merge')
+    setConfirmReplace(false)
+    setSafetyCopy(true)
+  }
+
+  const pick = async (f: File) => {
+    setError('')
+    try {
+      const p = parseBackup(await f.text())
+      setFileName(f.name)
+      setCurrent(await currentCounts())
+      setPreview(p)
+    } catch (e) {
+      setError(e instanceof BackupError ? e.message : 'That file could not be read.')
+    }
+  }
+
+  const restore = async () => {
+    if (!preview) return
+    setBusy(true)
+    try {
+      if (mode === 'replace' && safetyCopy) await downloadBackup()
+      const r = await applyBackup(preview, mode)
+      toast(
+        mode === 'replace'
+          ? `Restored ${r.added} items from the backup`
+          : `Restored: ${r.added} added, ${r.updated} updated, ${r.kept} kept as they were`,
+      )
+      close()
+    } catch {
+      setError('The restore did not complete, and nothing was changed. Your current data is as it was.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const exported = preview?.exportedAt ? new Date(preview.exportedAt) : null
+  return (
+    <>
+      <button className="btn" onClick={() => fileRef.current?.click()}>
+        <Upload size={16} /> Restore from backup
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        data-testid="restore-file"
+        onChange={async (e) => {
+          const f = e.target.files?.[0]
+          if (f) await pick(f)
+          e.target.value = ''
+        }}
+      />
+      {error && !preview && (
+        <div className="notice error small" role="alert" style={{ width: '100%' }}>
+          {error}
+        </div>
+      )}
+      <Dialog open={!!preview} onClose={close} title="Restore from backup">
+        {preview && current && (
+          <div className="stack">
+            <div className="small">
+              <strong>{fileName}</strong>
+              <br />
+              {exported && !isNaN(exported.getTime()) ? `Made ${exported.toLocaleString()}` : 'Date unknown'}
+            </div>
+            <table className="small" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ textAlign: 'left' }}>
+                  <th style={{ padding: '4px 0' }}>Item</th>
+                  <th>In backup</th>
+                  <th>On this device</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.tables
+                  .filter((t) => t.valid || t.skipped || current[t.table])
+                  .map((t) => (
+                    <tr key={t.table} style={{ borderTop: '1px solid var(--border)' }}>
+                      <td style={{ padding: '4px 0' }}>{TABLE_LABELS[t.table]}</td>
+                      <td>
+                        {t.valid}
+                        {t.skipped > 0 && <span style={{ color: 'var(--danger)' }}> ({t.skipped} skipped)</span>}
+                      </td>
+                      <td>{current[t.table]}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+            {preview.warnings.map((w) => (
+              <div key={w} className="notice warn small">
+                {w}
+              </div>
+            ))}
+            <fieldset style={{ border: 'none', padding: 0, margin: 0 }} className="stack">
+              <legend style={{ fontWeight: 600, marginBottom: 4 }}>How should it be restored?</legend>
+              <label className="row" style={{ alignItems: 'flex-start' }}>
+                <input type="radio" name="restore-mode" checked={mode === 'merge'} onChange={() => setMode('merge')} />
+                <span>
+                  <strong>Merge (recommended).</strong> Add what is missing. When an item is in both places, keep the one edited most recently.
+                  Nothing on this device is deleted.
+                </span>
+              </label>
+              <label className="row" style={{ alignItems: 'flex-start' }}>
+                <input type="radio" name="restore-mode" checked={mode === 'replace'} onChange={() => setMode('replace')} />
+                <span>
+                  <strong>Replace everything.</strong> Delete the notes, highlights, bookmarks, studies, sermons, folders, dictionary entries, and
+                  settings on this device, then restore the backup.
+                </span>
+              </label>
+            </fieldset>
+            {mode === 'replace' && (
+              <div className="notice error small stack">
+                <label className="row">
+                  <input type="checkbox" checked={safetyCopy} onChange={(e) => setSafetyCopy(e.target.checked)} /> Download a backup of my current data
+                  first
+                </label>
+                <label className="row">
+                  <input type="checkbox" checked={confirmReplace} onChange={(e) => setConfirmReplace(e.target.checked)} /> I understand my current data on
+                  this device will be replaced
+                </label>
+              </div>
+            )}
+            {error && (
+              <div className="notice error small" role="alert">
+                {error}
+              </div>
+            )}
+            <div className="row">
+              <button className="btn primary" disabled={busy || (mode === 'replace' && !confirmReplace)} onClick={restore}>
+                {busy ? 'Restoring…' : mode === 'merge' ? 'Merge backup' : 'Replace with backup'}
+              </button>
+              <button className="btn" onClick={close} disabled={busy}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+    </>
   )
 }
