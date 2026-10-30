@@ -172,6 +172,16 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
   check('docx uses the church notes template (header, footer, styles)', hdr.includes('GOD SO LOVED') && hdr.includes('John 3:16-17 | KJV') && hdr.includes('Sermon Manuscript') && docxText.includes('w:fill="F7F6F2"') && !docxText.includes('Nazareth'))
   check('docx keeps headings, quotation, notes', docxText.includes('GOD SO LOVED') && docxText.includes('Heading1') && docxText.includes('For God so loved the world') && docxText.includes('Here God loves the whole world'))
   check('pdf is a PDF', fs.readFileSync(path.join(dir, 'out.pdf')).subarray(0, 5).toString() === '%PDF-')
+  let pdfText = ''
+  try {
+    pdfText = execSync(`pdftotext ${path.join(dir, 'out.pdf')} -`).toString()
+  } catch {
+    /* pdftotext not installed */
+  }
+  if (pdfText) {
+    check('pdf follows the notes template (title, header, footer, quotation, notes)', pdfText.includes('GOD SO LOVED') && pdfText.includes('Sermon Manuscript') && pdfText.includes('John 3:16-17 | KJV') && pdfText.includes('For God so loved the world') && pdfText.includes('Here God loves the whole world'), pdfText.slice(0, 400))
+    check('pdf embeds the Inter font', execSync(`pdffonts ${path.join(dir, 'out.pdf')}`).toString().includes('Inter-'))
+  }
 
   await p.goto(sermonUrl + '/teach', { waitUntil: 'networkidle' })
   await p.locator('details').first().waitFor()

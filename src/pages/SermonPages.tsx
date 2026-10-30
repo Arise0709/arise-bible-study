@@ -8,7 +8,7 @@ import { LinkedText, ScriptureRef } from '../components/Scripture'
 import { getPassage, passageToText } from '../lib/data'
 import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
 import { db, recordSession, uid, type Sermon, type SermonSection } from '../db/db'
-import { sermonToDoc, toMarkdown, toPdf, wordExport } from '../export/doc'
+import { pdfExport, sermonToDoc, toMarkdown, wordExport } from '../export/doc'
 import { SECTION_TYPES, TEMPLATES, newSermon } from './sermonTemplates'
 
 /* ================= List ================= */
@@ -148,11 +148,10 @@ async function exportSermon(s: Sermon, kind: 'md' | 'docx' | 'pdf') {
     const doc = sermonToDoc(s, text, s.template === 'blank' ? undefined : approach)
     const name = slug(s.title)
     if (kind === 'md') downloadBlob(new Blob([toMarkdown(doc)], { type: 'text/markdown' }), `${name}.md`)
-    if (kind === 'docx') {
-      const folder = s.folderId ? await db.folders.get(s.folderId) : undefined
-      downloadBlob(await wordExport(doc, { kind: 'Sermon Manuscript', series: folder?.name ?? approach ?? 'Sermon Notes' }), `${name}.docx`)
-    }
-    if (kind === 'pdf') downloadBlob(await toPdf(doc), `${name}.pdf`)
+    const folder = s.folderId ? await db.folders.get(s.folderId) : undefined
+    const info = { kind: 'Sermon Manuscript', series: folder?.name ?? approach ?? 'Sermon Notes' }
+    if (kind === 'docx') downloadBlob(await wordExport(doc, info), `${name}.docx`)
+    if (kind === 'pdf') downloadBlob(await pdfExport(doc, info), `${name}.pdf`)
   } catch (e) {
     toast(`Export failed: ${(e as Error).message}`)
   }

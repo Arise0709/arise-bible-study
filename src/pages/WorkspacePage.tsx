@@ -12,7 +12,7 @@ import { getPassage, passageToText } from '../lib/data'
 import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
 import { StudySinkCtx, useStudy, type StudySink } from '../lib/state'
 import { WORKSHEET_SECTIONS, db, emptyWorksheet, recordSession, uid, type Block, type Study, type WorksheetKey } from '../db/db'
-import { studyToDoc, toMarkdown, toPdf, wordExport } from '../export/doc'
+import { pdfExport, studyToDoc, toMarkdown, wordExport } from '../export/doc'
 import { createSermonFromStudy } from './sermonTemplates'
 
 export function StudyStart() {
@@ -189,7 +189,7 @@ function Worksheet({ study, update, saved, onGoToPassage }: { study: Study; upda
       const name = slug(study.title)
       if (kind === 'md') downloadBlob(new Blob([toMarkdown(doc)], { type: 'text/markdown' }), `${name}.md`)
       if (kind === 'docx') downloadBlob(await wordExport(doc, { kind: 'Study Notes', series: 'Bible Study' }), `${name}.docx`)
-      if (kind === 'pdf') downloadBlob(await toPdf(doc), `${name}.pdf`)
+      if (kind === 'pdf') downloadBlob(await pdfExport(doc, { kind: 'Study Notes', series: 'Bible Study' }), `${name}.pdf`)
     } catch (e) {
       toast(`Export failed: ${(e as Error).message}`)
     }

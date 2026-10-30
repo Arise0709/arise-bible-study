@@ -225,3 +225,14 @@ export async function wordExport(doc: DocNode[], info: { kind: string; series: s
     return toDocx(doc)
   }
 }
+
+/** PDF export in the church notes template style; falls back to the built-in layout if it fails. */
+export async function pdfExport(doc: DocNode[], info: { kind: string; series: string }): Promise<Blob> {
+  try {
+    const { toTemplatePdf } = await import('./pdfTemplate')
+    return await toTemplatePdf(doc, info)
+  } catch (e) {
+    console.warn('Template PDF failed, using the built-in layout instead.', e)
+    return toPdf(doc)
+  }
+}
