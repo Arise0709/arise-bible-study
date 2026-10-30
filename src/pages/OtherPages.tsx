@@ -7,6 +7,7 @@ import { StrongsCard, StrongsLookup, ContextNote } from '../components/WordPanel
 import { Empty, ErrorBox, Loading, Tabs, downloadBlob, timeAgo, toast, useAsync } from '../components/ui'
 import { LinkedText, ScriptureRef } from '../components/Scripture'
 import { loadSources, loadTranslationIndex } from '../lib/data'
+import { aiStatus, getAiCode, setAiCode } from '../ai/assist'
 import { BOOKS, formatRef, parseOsis, parseRef, refPath } from '../lib/refs'
 import { onSearchProgress, searchBible, type SearchResult } from '../lib/search'
 import { DEFAULTS, useStudy } from '../lib/state'
@@ -354,6 +355,7 @@ export function SettingsPage() {
           Anthropic's Claude to organize observations, suggest questions, summarize, or draft an outline. Results are labeled as AI drafts, cite their
           passages, and are checked against the KJV and Strong's data. It needs <code>ANTHROPIC_API_KEY</code> set on the server.
         </p>
+        {settings.aiEnabled && <AiCodeField />}
       </section>
       <section className="card stack">
         <h2>Your data</h2>
@@ -681,5 +683,41 @@ function TranslationSettings() {
         </>
       )}
     </section>
+  )
+}
+
+/* ================= AI access code ================= */
+
+function AiCodeField() {
+  const [code, setCode] = useState(getAiCode())
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'error' | 'info'; text: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const check = async () => {
+    setBusy(true)
+    setAiCode(code.trim())
+    const st = await aiStatus(true)
+    setBusy(false)
+    if (!st.reachable) setMsg({ kind: 'error', text: 'Could not reach the assistant on this deployment.' })
+    else if (!st.codeConfigured) setMsg({ kind: 'error', text: 'The site has no AI_ACCESS_CODE set yet, so the assistant stays locked.' })
+    else if (!code.trim()) setMsg({ kind: 'info', text: 'Code removed from this device.' })
+    else if (st.codeValid) setMsg({ kind: 'ok', text: 'Code accepted. The assistant is ready on this device.' })
+    else setMsg({ kind: 'error', text: 'That code was not accepted. After 10 wrong tries, codes are locked for an hour.' })
+  }
+  return (
+    <div className="stack">
+      <label className="field">
+        <span>AI access code (kept only on this device, not in backups)</span>
+        <input type="password" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Code set by the site owner" />
+      </label>
+      <div className="row">
+        <button className="btn" onClick={check} disabled={busy}>
+          {busy ? 'Checking…' : 'Save and check code'}
+        </button>
+      </div>
+      {msg && <div className={`notice ${msg.kind === 'ok' ? 'ok' : msg.kind === 'error' ? 'error' : 'info'} small`}>{msg.text}</div>}
+      <p className="small muted" style={{ margin: 0 }}>
+        The server also limits how often the assistant can be used each minute and each day, so a leaked code cannot run up costs.
+      </p>
+    </div>
   )
 }

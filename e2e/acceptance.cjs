@@ -221,7 +221,11 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
 
   console.log('10. AI assistant guards (mocked AI response)')
   await p.route('**/api/assist', (route) => {
-    if (route.request().method() === 'GET') return route.fulfill({ json: { configured: true } })
+    if (route.request().method() === 'GET') {
+      const hasCode = !!route.request().headers()['x-ai-access-code']
+      return route.fulfill({ json: { configured: true, keyConfigured: true, codeConfigured: true, codeValid: hasCode ? route.request().headers()['x-ai-access-code'] === 'test-code' : undefined } })
+    }
+    if (route.request().headers()['x-ai-access-code'] !== 'test-code') return route.fulfill({ status: 401, json: { error: 'Enter the AI access code in Settings to use the assistant.' } })
     return route.fulfill({
       json: {
         result: {
@@ -239,6 +243,18 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
   })
   await p.goto(BASE + '/settings', { waitUntil: 'networkidle' })
   await p.getByLabel('Turn on the AI assistant').check()
+  await p.goto(studyUrl, { waitUntil: 'networkidle' })
+  await panel().getByRole('tab', { name: /AI/ }).click()
+  await panel().locator('text=Enter the AI access code').waitFor()
+  check('AI asks for the access code before use', true)
+  await p.goto(BASE + '/settings', { waitUntil: 'networkidle' })
+  await p.getByLabel(/AI access code/).fill('wrong-code')
+  await p.getByRole('button', { name: 'Save and check code' }).click()
+  await p.locator('text=That code was not accepted').waitFor()
+  await p.getByLabel(/AI access code/).fill('test-code')
+  await p.getByRole('button', { name: 'Save and check code' }).click()
+  await p.locator('text=Code accepted').waitFor()
+  check('Settings checks the access code (wrong rejected, right accepted)', true)
   await p.goto(studyUrl, { waitUntil: 'networkidle' })
   await panel().getByRole('tab', { name: /AI/ }).click()
   await panel().getByRole('button', { name: /Organize observations/ }).click()

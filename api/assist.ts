@@ -6,6 +6,9 @@
  * verifies every quotation, reference and Strong's number before showing the result.
  */
 import Anthropic from '@anthropic-ai/sdk'
+import { checkCode, guard, limiterKind } from './_lib/guard.js'
+
+const MAX_BODY = 200_000 // bytes; the study materials limit is 120,000 characters
 
 const TASKS: Record<string, string> = {
   organize: 'Organize the reader\'s observations into clear groups (repeated words, commands, promises, contrasts, questions, connections). Do not add new observations that the materials do not support.',
@@ -53,19 +56,40 @@ const SCHEMA = {
   },
 } as const
 
-export async function GET() {
-  return Response.json({ configured: !!process.env.ANTHROPIC_API_KEY })
+const deny = (status: number, error: string, retryAfter?: number) =>
+  Response.json({ error }, { status, headers: retryAfter ? { 'retry-after': String(retryAfter) } : undefined })
+
+/** Status for the app: is the AI set up, is a code required, and (when sent) is the given code right. */
+export async function GET(request: Request) {
+  const codeConfigured = !!process.env.AI_ACCESS_CODE
+  const sent = request.headers.has('x-ai-access-code')
+  return Response.json({
+    configured: !!process.env.ANTHROPIC_API_KEY && codeConfigured,
+    keyConfigured: !!process.env.ANTHROPIC_API_KEY,
+    codeConfigured,
+    codeValid: sent ? await checkCode(request).catch(() => false) : undefined,
+    limiter: limiterKind(),
+  })
 }
 
 export async function POST(request: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json({ error: 'The AI assistant is not configured on this deployment. Add ANTHROPIC_API_KEY in the Vercel project settings.' }, { status: 501 })
+    return deny(501, 'The AI assistant is not configured on this deployment. Add ANTHROPIC_API_KEY in the Vercel project settings.')
   }
+  const declared = Number(request.headers.get('content-length') ?? 0)
+  if (declared > MAX_BODY) return deny(413, 'This study is too large to send in one request. Try summarizing one section at a time.')
+
+  // access code, same-site check, and rate limits come before any paid work
+  const g = await guard(request)
+  if (!g.ok) return deny(g.status, g.error, g.retryAfter)
+
   let body: { task?: string; materials?: string }
   try {
-    body = await request.json()
+    const raw = await request.text()
+    if (raw.length > MAX_BODY) return deny(413, 'This study is too large to send in one request. Try summarizing one section at a time.')
+    body = JSON.parse(raw)
   } catch {
-    return Response.json({ error: 'Invalid request.' }, { status: 400 })
+    return deny(400, 'Invalid request.')
   }
   const task = TASKS[body.task ?? '']
   const materials = String(body.materials ?? '')
@@ -73,7 +97,8 @@ export async function POST(request: Request) {
   if (!materials.trim()) return Response.json({ error: 'There is nothing in this study yet for the assistant to work with.' }, { status: 400 })
   if (materials.length > 120_000) return Response.json({ error: 'This study is too large to send in one request. Try summarizing one section at a time.' }, { status: 413 })
 
-  const client = new Anthropic()
+  const client = new Anthropic({ timeout: 120_000 })
+  const started = Date.now()
   try {
     const response = await client.beta.messages.create({
       model: 'claude-opus-5-5',
@@ -89,6 +114,8 @@ export async function POST(request: Request) {
         },
       ],
     })
+    // usage log: counts only, never study content
+    console.log(JSON.stringify({ event: 'ai_request', task: body.task, inputChars: materials.length, inputTokens: response.usage?.input_tokens, outputTokens: response.usage?.output_tokens, stop: response.stop_reason, ms: Date.now() - started }))
     if (response.stop_reason === 'refusal') {
       return Response.json({ error: 'The assistant declined this request. Try rephrasing or narrowing it.' }, { status: 422 })
     }

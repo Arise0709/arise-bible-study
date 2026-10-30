@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
-import { AI_TASKS, aiConfigured, runAssistant, type AiTask } from '../ai/assist'
+import { AI_TASKS, aiStatus, getAiCode, runAssistant, type AiTask } from '../ai/assist'
 import { useStudy, useStudySink } from '../lib/state'
 import type { Block, WorksheetKey } from '../db/db'
 import { BlockView } from './Blocks'
@@ -12,7 +12,7 @@ const TARGET: Record<AiTask, WorksheetKey> = { organize: 'observation', question
 export function AiPanel() {
   const { settings } = useStudy()
   const sink = useStudySink()
-  const { data: configured, loading } = useAsync(() => (settings.aiEnabled ? aiConfigured() : Promise.resolve(false)), [settings.aiEnabled])
+  const { data: status, loading } = useAsync(() => (settings.aiEnabled ? aiStatus() : Promise.resolve(null)), [settings.aiEnabled])
   const [busy, setBusy] = useState<AiTask | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [result, setResult] = useState<{ task: AiTask; block: Extract<Block, { kind: 'ai' }> } | null>(null)
@@ -34,13 +34,32 @@ export function AiPanel() {
       </div>
     )
   if (loading) return <Loading label="Checking the assistant" />
-  if (!configured)
+  if (!status?.keyConfigured)
     return (
       <div className="stack">
         {intro}
         <div className="notice warn">
           The assistant is switched on, but this deployment has no AI key. Whoever manages the site needs to add <code>ANTHROPIC_API_KEY</code> in the
           Vercel project settings. Everything else in the app works without it.
+        </div>
+      </div>
+    )
+  if (!status.codeConfigured)
+    return (
+      <div className="stack">
+        {intro}
+        <div className="notice warn">
+          The assistant is locked for safety. Whoever manages the site needs to set <code>AI_ACCESS_CODE</code> in the Vercel project settings, then
+          enter the same code in <Link to="/settings">Settings</Link>.
+        </div>
+      </div>
+    )
+  if (!getAiCode())
+    return (
+      <div className="stack">
+        {intro}
+        <div className="notice warn">
+          Enter the AI access code in <Link to="/settings">Settings</Link> to use the assistant on this device.
         </div>
       </div>
     )

@@ -92,14 +92,41 @@ export async function buildMaterials(study: Study): Promise<{ text: string; vers
   return { text: lines.join('\n'), verses, strongs, tr }
 }
 
-export async function aiConfigured(): Promise<boolean> {
+/* The AI access code lives only in this browser (not in backups) and is sent with each request. */
+const CODE_KEY = 'abs-ai-code'
+export function getAiCode(): string {
   try {
-    const r = await fetch('/api/assist')
-    if (!r.ok) return false
-    const j = await r.json()
-    return !!j.configured
+    return localStorage.getItem(CODE_KEY) ?? ''
   } catch {
-    return false
+    return ''
+  }
+}
+export function setAiCode(code: string) {
+  try {
+    if (code) localStorage.setItem(CODE_KEY, code)
+    else localStorage.removeItem(CODE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+export interface AiStatus {
+  reachable: boolean
+  keyConfigured: boolean
+  codeConfigured: boolean
+  codeValid?: boolean
+}
+
+/** Asks the server whether the AI is set up, and (when a code is saved here) whether the code is right. */
+export async function aiStatus(checkCode = false): Promise<AiStatus> {
+  try {
+    const code = getAiCode()
+    const r = await fetch('/api/assist', { headers: checkCode && code ? { 'x-ai-access-code': code } : {} })
+    if (!r.ok || !(r.headers.get('content-type') ?? '').includes('json')) return { reachable: false, keyConfigured: false, codeConfigured: false }
+    const j = await r.json()
+    return { reachable: true, keyConfigured: !!(j.keyConfigured ?? j.configured), codeConfigured: !!j.codeConfigured, codeValid: j.codeValid }
+  } catch {
+    return { reachable: false, keyConfigured: false, codeConfigured: false }
   }
 }
 
@@ -109,7 +136,11 @@ export async function runAssistant(task: AiTask, study: Study): Promise<Extract<
   const m = await buildMaterials(study)
   let res: Response
   try {
-    res = await fetch('/api/assist', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ task, materials: m.text }) })
+    res = await fetch('/api/assist', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-ai-access-code': getAiCode() },
+      body: JSON.stringify({ task, materials: m.text }),
+    })
   } catch {
     throw new Error('Could not reach the assistant. Check your connection.')
   }
