@@ -21,7 +21,8 @@ export async function importBackup(file: File): Promise<number> {
   let count = 0
   await db.transaction('rw', TABLES.map((t) => db.table(t)), async () => {
     for (const t of TABLES) {
-      const rows = parsed.data?.[t]
+      let rows = parsed.data?.[t]
+      if (t === 'settings' && Array.isArray(rows)) rows = rows.filter((r) => !['lastBackupAt', 'backupSnoozeUntil'].includes((r as { key?: string })?.key ?? ''))
       if (Array.isArray(rows) && rows.length) {
         await db.table(t).bulkPut(rows)
         count += rows.length

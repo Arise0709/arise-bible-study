@@ -5,6 +5,8 @@ import { StudyProvider } from './lib/state'
 import { db } from './db/db'
 import { loadBookIndex } from './lib/data'
 import { Dialog, ToastHost } from './components/ui'
+import { BackupReminder } from './components/DataSafety'
+import { autoRequestPersistence } from './lib/dataSafety'
 import { BiblePage } from './pages/BiblePage'
 import { StudyStart, WorkspacePage } from './pages/WorkspacePage'
 import { SermonEditorPage, SermonsPage, TeachingView } from './pages/SermonPages'
@@ -55,6 +57,7 @@ function Shell() {
 
   useEffect(() => {
     loadBookIndex().catch(() => {})
+    void autoRequestPersistence()
   }, [])
 
   useEffect(() => {
@@ -115,6 +118,7 @@ function Shell() {
           </NavLink>
         </header>
       )}
+      {!teaching && <BackupReminder />}
       <main id="main" className="content">
         <Routes>
           <Route path="/" element={<Home />} />

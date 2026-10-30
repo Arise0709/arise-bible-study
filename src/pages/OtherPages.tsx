@@ -4,7 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Bookmark, Clock, Download, NotebookPen, Plus, Trash2, Upload } from 'lucide-react'
 import { DictEntryEditor, DictionaryPanel, Highlighted, SourceBadge, ThesaurusPanel } from '../components/ReferencePanels'
 import { StrongsCard, StrongsLookup, ContextNote } from '../components/WordPanel'
-import { Empty, ErrorBox, Loading, Tabs, downloadBlob, timeAgo, toast, useAsync } from '../components/ui'
+import { Empty, ErrorBox, Loading, Tabs, timeAgo, toast, useAsync } from '../components/ui'
 import { LinkedText, ScriptureRef } from '../components/Scripture'
 import { loadSources, loadTranslationIndex } from '../lib/data'
 import { aiStatus, getAiCode, setAiCode } from '../ai/assist'
@@ -13,7 +13,9 @@ import { onSearchProgress, searchBible, type SearchResult } from '../lib/search'
 import { DEFAULTS, useStudy } from '../lib/state'
 import { ACCENTS, LINE_SPACING, SCRIPTURE_FONTS, TONES, UI_FONTS } from '../lib/appearance'
 import { db } from '../db/db'
-import { exportBackup, importBackup } from '../db/backup'
+import { importBackup } from '../db/backup'
+import { downloadBackup } from '../lib/dataSafety'
+import { DataProtectionStatus } from '../components/DataSafety'
 
 /* ================= Dictionary ================= */
 
@@ -363,11 +365,13 @@ export function SettingsPage() {
           Notes, highlights, studies, sermons, and dictionary entries are saved in this browser on this device. Download a backup regularly, and use
           it to move your work to another device or browser.
         </p>
+        <DataProtectionStatus />
         <div className="row">
           <button
             className="btn primary"
             onClick={async () => {
-              downloadBlob(await exportBackup(), `arise-bible-study-backup-${new Date().toISOString().slice(0, 10)}.json`)
+              await downloadBackup()
+              toast('Backup downloaded')
             }}
           >
             <Download size={16} /> Download backup
