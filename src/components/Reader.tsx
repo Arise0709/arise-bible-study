@@ -224,7 +224,7 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
             return (
               <Fragment key={v.v}>
                 {v.h && <div className="acrostic">{v.h}</div>}
-                <span id={`v-${book}-${chapter}-${v.v}`} className={`verse block ${v.p ? 'paragraph' : ''} ${hl ? 'hl-' + hl : ''} ${isSel ? 'selected' : ''}`}>
+                <span id={`v-${book}-${chapter}-${v.v}`} className={`verse vline ${v.p ? 'paragraph' : ''} ${hl ? 'hl-' + hl : ''} ${isSel ? 'selected' : ''}`}>
                   <button className="vnum" onClick={(e) => onVerseNum(v.v, e.shiftKey)} aria-label={`Select verse ${v.v}`} aria-pressed={!!isSel}>
                     {v.v}
                   </button>

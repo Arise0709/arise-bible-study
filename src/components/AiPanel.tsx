@@ -68,7 +68,7 @@ export function AiPanel() {
       {intro}
       <div className="stack">
         {AI_TASKS.map((t) => (
-          <button key={t.id} className="btn" style={{ justifyContent: 'flex-start', width: '100%' }} disabled={!!busy} onClick={() => run(t.id)}>
+          <button key={t.id} className="btn" style={{ justifyContent: 'flex-start', width: '100%', whiteSpace: 'normal', textAlign: 'left' }} disabled={!!busy} onClick={() => run(t.id)}>
             <Sparkles size={15} /> <span style={{ textAlign: 'left' }}>{t.label} <span className="muted small">· {t.hint}</span></span>
           </button>
         ))}

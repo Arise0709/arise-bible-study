@@ -1,13 +1,17 @@
 {
   "name": "arise-bible-study",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "e2e": "node e2e/acceptance.cjs",
+    "data:fetch": "bash scripts/fetch_sources.sh",
+    "data:build": "bash scripts/build_all.sh"
   },
   "dependencies": {
     "dexie": "^4.4.7",

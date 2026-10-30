@@ -258,7 +258,7 @@ h3 {
   margin-left: auto;
   position: relative;
 }
-.topsearch input {
+.topsearch input[type="search"] {
   width: 100%;
   padding: 8px 12px 8px 34px;
   border-radius: 999px;
@@ -642,7 +642,7 @@ kbd {
   color: var(--text-muted);
   font-size: 0.8em;
 }
-.verse.block {
+.verse.vline {
   display: block;
   margin-bottom: 6px;
 }
@@ -816,6 +816,8 @@ kbd {
   line-height: 1.3;
 }
 .orig.hebrew {
+  text-align: left;
+  unicode-bidi: plaintext;
   font-family: var(--hebrew-font);
   direction: rtl;
 }
@@ -1065,3 +1067,8 @@ kbd {
   }
 }
 .spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+a.btn,
+a.iconbtn {
+  text-decoration: none;
+  color: inherit;
+}

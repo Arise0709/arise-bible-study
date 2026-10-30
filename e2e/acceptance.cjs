@@ -1,0 +1,237 @@
+/*
+ * End-to-end acceptance run of the first-release workflow.
+ * Usage: start the app (npm run dev or npm run preview), then
+ *   node e2e/acceptance.cjs http://127.0.0.1:5173 [screenshotDir]
+ */
+const { chromium } = require('playwright')
+const fs = require('fs')
+const path = require('path')
+const os = require('os')
+const { execSync } = require('child_process')
+
+const BASE = process.argv[2] || 'http://127.0.0.1:5173'
+const SHOTS = process.argv[3]
+let passed = 0
+const failures = []
+function check(name, cond, detail = '') {
+  if (cond) {
+    passed++
+    console.log('  ok  ' + name)
+  } else {
+    failures.push(name)
+    console.log('  FAIL ' + name + (detail ? ' :: ' + detail : ''))
+  }
+}
+const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, name + '.png') })
+
+;(async () => {
+  const browser = await chromium.launch()
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true })
+  const p = await ctx.newPage()
+  const errors = []
+  p.on('pageerror', (e) => errors.push(e.message))
+  const panel = () => p.locator('div.panel[aria-label="Study tools"]')
+
+  console.log('1. Bible navigation and search')
+  await p.goto(BASE + '/bible/Gen/1', { waitUntil: 'networkidle' })
+  check('Genesis 1:1 exact KJV text', (await p.locator('#v-Gen-1-1').innerText()).includes('In the beginning God created the heaven and the earth.'))
+  await p.keyboard.press(']')
+  await p.waitForURL(/\/bible\/Gen\/2/)
+  check('] moves to the next chapter', p.url().endsWith('/bible/Gen/2'))
+  await p.fill('#global-search', 'Rom 8:28')
+  await p.press('#global-search', 'Enter')
+  await p.waitForURL(/\/bible\/Rom\/8\/28/)
+  check('reference search opens Romans 8:28', /\/bible\/Rom\/8\/28/.test(p.url()))
+  await p.fill('#global-search', '"God so loved"')
+  await p.press('#global-search', 'Enter')
+  await p.locator('text=/\\d+ verses? found/').waitFor({ timeout: 90000 })
+  const results = await p.locator('main').innerText()
+  check('phrase search finds John 3:16 and 1 John 4:11', results.includes('John 3:16') && results.includes('1 John 4:11') && results.includes('2 verses found'), results.slice(0, 200))
+  await p.goto(BASE + '/search?q=charity&scope=NT', { waitUntil: 'networkidle' })
+  await p.locator('text=/\\d+ verses? found/').waitFor({ timeout: 90000 })
+  check('word search with testament filter', (await p.locator('main').innerText()).includes('1 Corinthians 13:4'))
+
+  console.log('2. Verified word mappings')
+  await p.goto(BASE + '/bible/Gen/1', { waitUntil: 'networkidle' })
+  await p.locator('#v-Gen-1-1 .w', { hasText: 'In the beginning' }).click()
+  await panel().locator('text=Strong\'s H7225').waitFor()
+  let t = await panel().innerText()
+  check('Gen 1:1 "In the beginning" -> H7225 רֵאשִׁית', t.includes('H7225') && t.normalize('NFC').includes('רֵאשִׁית'.normalize('NFC')), t.slice(0, 300))
+  check('several English words for one Hebrew word explained', t.includes('These 3 English words translate one original word'))
+  await p.locator('#v-Gen-1-1 .w', { hasText: 'created' }).click()
+  await panel().locator('text=Strong\'s H1254').waitFor()
+  t = await panel().innerText()
+  check('one phrase with two Strong\'s numbers lists both (H853, H1254)', t.includes('H853') && t.includes('H1254') && t.includes('2 original words'))
+  await p.locator('#v-Gen-1-2 .w.added', { hasText: 'was' }).first().click()
+  await panel().locator('text=Added by the translators').waitFor()
+  check('italic added word shows "no original word"', true)
+  await p.goto(BASE + '/bible/John/3/16', { waitUntil: 'networkidle' })
+  await p.locator('#v-John-3-16 .w', { hasText: 'loved' }).click()
+  await panel().locator('text=Strong\'s G25').waitFor()
+  t = await panel().innerText()
+  check('John 3:16 "loved" -> G25 ἀγαπάω with decoded form', t.includes('ἀγαπάω') && t.includes('aorist, active, indicative'))
+  check('other passages listed', /Other passages with G25 \(\d+ verses\)/.test(t))
+  await shot(p, 'a-word-study')
+
+  console.log('3. Dictionary and thesaurus')
+  await panel().getByRole('tab', { name: /Dictionary/ }).click()
+  await panel().locator('input[type=search]').fill('conversation')
+  await panel().locator('input[type=search]').press('Enter')
+  await panel().locator('li', { hasText: 'Webster 1913' }).first().waitFor()
+  t = await panel().innerText()
+  check('dictionary finds archaic + Webster entries', t.includes('Conversation') && t.includes('Webster 1913'))
+  await panel().getByRole('tab', { name: /Thesaurus/ }).click()
+  await panel().locator('text=Modern English').waitFor()
+  await panel().locator('text=How the KJV uses it').waitFor()
+  await p.waitForTimeout(1500)
+  t = await panel().innerText()
+  check('thesaurus separates KJV-era and modern meanings', t.includes('KJV-era meaning') && t.includes('General course of conduct') && t.includes('WordNet'))
+  await shot(p, 'b-thesaurus')
+
+  console.log('4. Study workspace and persistence')
+  await p.locator('#v-John-3-16 .vnum').click()
+  await p.locator('#v-John-3-17 .vnum').click({ modifiers: ['Shift'] })
+  await p.getByRole('button', { name: 'Study this passage' }).click()
+  await p.waitForURL(/\/study\//)
+  const studyUrl = p.url()
+  await p.locator('text=Guided breakdown').waitFor()
+  await p.locator('div.panel[aria-label="Study notes"] .block.scripture').first().waitFor()
+  check('worksheet shows the exact passage text', (await p.locator('div.panel[aria-label="Study notes"]').innerText()).includes('For God so loved the world'))
+  const reader = p.locator('div.panel').first()
+  await reader.locator('.w', { hasText: /^loved$/ }).first().click()
+  await panel().getByRole('button', { name: 'Add to study' }).first().click()
+  const notesPanel = p.locator('div.panel[aria-label="Study notes"]')
+  await notesPanel.locator('.block.word').first().waitFor()
+  await notesPanel.locator('.block.word textarea').first().fill('Here God loves the whole world, shown by giving his Son (John 3:16).')
+  const interp = notesPanel.locator('section.ws-section', { has: p.locator('h3', { hasText: 'Interpretation' }) })
+  await interp.getByRole('button', { name: 'My note' }).click()
+  await interp.locator('textarea').fill('God\'s love is measured by the gift. Compare Rom 5:8.')
+  await p.waitForTimeout(1200)
+  await p.reload({ waitUntil: 'networkidle' })
+  await notesPanel.locator('.block.word').first().waitFor()
+  t = (await notesPanel.innerText()) + (await notesPanel.locator('textarea').evaluateAll((els) => els.map((e) => e.value).join(' | ')))
+  check('study notes persist after reload', t.includes('measured by the gift') && t.includes('G25') && (await notesPanel.locator('.block.word textarea').first().inputValue()).includes('whole world'), t.slice(0, 1500))
+  check('references in notes become links', (await notesPanel.locator('a.reflink', { hasText: 'Romans 5:8' }).count()) > 0)
+  await shot(p, 'c-workspace')
+
+  console.log('5. Personal dictionary')
+  await p.goto(BASE + '/dictionary', { waitUntil: 'networkidle' })
+  await p.getByRole('tab', { name: /My dictionary/ }).click()
+  await p.getByRole('button', { name: 'New entry' }).click()
+  await p.getByLabel('Word or term').fill('Agape')
+  await p.getByLabel('Definition in your own words').fill('Self-giving love that acts for the good of another.')
+  await p.getByLabel("Strong's numbers (e.g. G26, H2617)").fill('G26, G25')
+  await p.getByLabel('Supporting Scripture (separate with ;)').fill('1 Cor 13:4-7; John 3:16')
+  await p.getByRole('button', { name: 'Save entry' }).click()
+  await p.locator('text=Saved to My Dictionary').waitFor()
+  await p.reload({ waitUntil: 'networkidle' })
+  await p.getByRole('tab', { name: /My dictionary/ }).click()
+  await p.locator('li', { hasText: 'Agape' }).waitFor({ timeout: 5000 }).catch(() => {})
+  t = await p.locator('main').innerText()
+  check('personal dictionary entry persists after reload', t.includes('Agape') && t.includes('Self-giving love'))
+  await p.getByLabel("Strong's numbers (e.g. G26, H2617)").count().then((n) => check('bad Strong\'s input path closed', n === 0))
+
+  console.log('6. Sermon builder')
+  await p.goto(studyUrl, { waitUntil: 'networkidle' })
+  await p.getByRole('button', { name: 'Turn into sermon or lesson' }).click()
+  await p.waitForURL(/\/sermons\//)
+  const sermonUrl = p.url()
+  await p.locator('#stitle').fill('God So Loved')
+  await p.getByLabel('Main idea').fill('God\'s love gives.')
+  const firstTitle = await p.locator('.sermon-section header input').first().inputValue()
+  await p.getByRole('button', { name: 'Move section down' }).first().click()
+  await p.waitForTimeout(1200)
+  await p.reload({ waitUntil: 'networkidle' })
+  await p.locator('#stitle').waitFor()
+  check('sermon title saved and reopened', (await p.locator('#stitle').inputValue()) === 'God So Loved')
+  const secondTitle = await p.locator('.sermon-section header input').nth(1).inputValue()
+  check('section reorder saved', secondTitle === firstTitle, `${firstTitle} vs ${secondTitle}`)
+  t = await p.locator('main').innerText()
+  const tas = await p.locator('main textarea').evaluateAll((els) => els.map((e) => e.value).join(' | '))
+  check('word study and Scripture carried into outline', t.includes('G25') && tas.includes('Here God loves the whole world'), tas.slice(0, 400))
+  await shot(p, 'd-sermon')
+
+  console.log('7. Exports')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'abs-export-'))
+  for (const [label, ext] of [['.md', 'md'], ['Word', 'docx'], ['PDF', 'pdf']]) {
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.getByRole('button', { name: label, exact: true }).click()])
+    const f = path.join(dir, `out.${ext}`)
+    await dl.saveAs(f)
+    check(`${ext} export downloaded`, fs.statSync(f).size > 500)
+  }
+  const md = fs.readFileSync(path.join(dir, 'out.md'), 'utf8')
+  check('markdown keeps title, headings, quotation, notes', md.startsWith('# God So Loved') && md.includes('## ') && md.includes('For God so loved the world') && md.includes('(KJV)') && md.includes('Here God loves the whole world'), md.slice(0, 900))
+  const docxText = execSync(`unzip -p ${path.join(dir, 'out.docx')} word/document.xml`).toString()
+  check('docx keeps headings, quotation, notes', docxText.includes('God So Loved') && docxText.includes('Heading2') && docxText.includes('For God so loved the world') && docxText.includes('Here God loves the whole world'))
+  check('pdf is a PDF', fs.readFileSync(path.join(dir, 'out.pdf')).subarray(0, 5).toString() === '%PDF-')
+
+  await p.goto(sermonUrl + '/teach', { waitUntil: 'networkidle' })
+  await p.locator('details').first().waitFor()
+  check('teaching view shows collapsible sections', (await p.locator('details').count()) > 3)
+  await shot(p, 'e-teach')
+
+  console.log('8. Missing data and errors')
+  await p.goto(BASE + '/bible/John/99', { waitUntil: 'networkidle' })
+  check('nonexistent chapter explained', (await p.locator('main').innerText()).includes('Chapter 99 does not exist'))
+  await p.goto(BASE + '/study/not-a-real-id', { waitUntil: 'networkidle' })
+  check('missing study explained', (await p.locator('main').innerText()).includes('This study was not found'))
+  await p.route('**/data/strongs/G0.json', (r) => r.fulfill({ status: 404, body: 'nope' }))
+  await p.goto(BASE + '/dictionary?strongs=G25', { waitUntil: 'networkidle' })
+  await p.locator('text=Missing data').waitFor({ timeout: 10000 }).catch(() => {})
+  check('missing data file shows a clear message', (await p.locator('main').innerText()).includes('Could not load'))
+  await p.unroute('**/data/strongs/G0.json')
+
+  console.log('9. Mobile layout')
+  const m = await ctx.newPage()
+  await m.setViewportSize({ width: 390, height: 844 })
+  await m.goto(studyUrl, { waitUntil: 'networkidle' })
+  await m.getByRole('tab', { name: 'Notes' }).waitFor()
+  await shot(m, 'f-mobile-scripture')
+  await m.getByRole('tab', { name: 'Notes' }).click()
+  check('mobile: switch to notes panel', (await m.locator('main').innerText()).includes('Guided breakdown'))
+  const overflow = await m.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)
+  check('mobile: no horizontal page scroll', !overflow)
+  await shot(m, 'g-mobile-notes')
+
+  console.log('10. AI assistant guards (mocked AI response)')
+  await p.route('**/api/assist', (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: { configured: true } })
+    return route.fulfill({
+      json: {
+        result: {
+          sections: [{ heading: 'Observations', body: 'Love is shown by giving. One reading stresses the scope (the world).' }],
+          citations: ['John.3.16', 'Eph.2.4'],
+          strongs: ['G25', 'G9999'],
+          quotes: [
+            { ref: 'John.3.16', text: 'For God so loved the world' },
+            { ref: 'John.3.16', text: 'For God really loved everybody' },
+          ],
+          uncertainties: ['Whether verses 16-21 are Jesus speaking or John commenting.'],
+        },
+      },
+    })
+  })
+  await p.goto(BASE + '/settings', { waitUntil: 'networkidle' })
+  await p.getByLabel('Turn on the AI assistant').check()
+  await p.goto(studyUrl, { waitUntil: 'networkidle' })
+  await panel().getByRole('tab', { name: /AI/ }).click()
+  await panel().getByRole('button', { name: /Organize observations/ }).click()
+  await panel().locator('.block.ai').waitFor({ timeout: 15000 })
+  t = await panel().innerText()
+  check('AI output is labeled as an AI draft', t.includes('AI-GENERATED DRAFT') || t.includes('AI-generated draft'))
+  check('real quotation kept', t.includes('“For God so loved the world” (John 3:16, KJV)'))
+  check('fabricated quotation removed and flagged', !t.includes('really loved everybody') && t.includes('does not match the KJV text'))
+  check('invented Strong number flagged', t.includes('G9999'))
+  check('citation outside the study flagged', t.includes('Ephesians 2:4 is not in your study materials'))
+  check('uncertainty listed', t.includes('Open questions and uncertainty'))
+  await shot(p, 'i-ai-guards')
+  await p.unroute('**/api/assist')
+
+  check('no uncaught page errors', errors.length === 0, errors.join(' | '))
+  await browser.close()
+  console.log(`\n${passed} passed, ${failures.length} failed`)
+  process.exit(failures.length ? 1 : 0)
+})().catch((e) => {
+  console.error(e)
+  process.exit(2)
+})
