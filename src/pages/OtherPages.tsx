@@ -302,7 +302,7 @@ export function SearchPage() {
           set('q', input)
         }}
       >
-        <input type="search" value={input} onChange={(e) => setInput(e.target.value)} placeholder='Word, phrase in "quotes", reference (Rom 8:28), or Strong&apos;s number (G26)' style={{ flex: 1, minWidth: 220 }} aria-label="Search" />
+        <input type="search" value={input} onChange={(e) => setInput(e.target.value)} placeholder='Word, phrase in "quotes", reference (Rom 8:28), or Strong&apos;s number (G26)' style={{ flex: 1, minWidth: 220 }} aria-label="Search" autoFocus={!q} />
         <button className="btn primary">Search</button>
       </form>
       <div className="row small" style={{ flexWrap: 'wrap' }}>

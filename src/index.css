@@ -280,7 +280,7 @@ h3 {
 .bottomnav {
   display: none;
 }
-@media (max-width: 1100px) {
+@media (max-width: 1240px) {
   .mainnav a span {
     display: none;
   }

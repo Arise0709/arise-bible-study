@@ -15,6 +15,7 @@ import { DictionaryPage, KeyboardHelp, SavedStudiesPage, SearchPage, SettingsPag
 
 const NAV = [
   { to: '/bible', label: 'Bible', icon: BookOpen },
+  { to: '/search', label: 'Search', icon: Search },
   { to: '/study', label: 'Study Workspace', short: 'Study', icon: Columns3 },
   { to: '/dictionary', label: 'Dictionary', icon: BookA },
   { to: '/sermons', label: 'Sermons & Lessons', short: 'Sermons', icon: Mic },

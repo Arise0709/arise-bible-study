@@ -532,6 +532,11 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     }
     const found = () => q.locator('text=/\\d+ verses? found/')
     await q.goto(BASE + '/bible/John/1', { waitUntil: 'networkidle' })
+    await q.locator('.mainnav').getByRole('link', { name: 'Search' }).click()
+    await q.waitForURL(/\/search$/)
+    await q.locator('h1', { hasText: 'Search the Bible' }).waitFor()
+    const ready = await q.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Search', null, { timeout: 3000 }).then(() => true, () => false)
+    check('the Search button opens the search page, ready to type', ready)
     // H1: single-chapter books
     for (const [text, path, id] of [['Jude 3', '/bible/Jude/1/3', '#v-Jude-1-3'], ['Obadiah 4', '/bible/Obad/1/4', '#v-Obad-1-4'], ['Philemon 6', '/bible/Phlm/1/6', '#v-Phlm-1-6'], ['2 John 5', '/bible/2John/1/5', '#v-2John-1-5'], ['3 John 4', '/bible/3John/1/4', '#v-3John-1-4']]) {
       await go(text)
@@ -605,6 +610,10 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     await mp.locator('text=/\\d+ verses? found/').waitFor()
     const overflow = await mp.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     check('search page fits a phone screen (no sideways scrolling)', overflow <= 0, String(overflow))
+    await mp.locator('.bottomnav').getByRole('link', { name: 'Search' }).click()
+    await mp.waitForURL(/\/search$/)
+    await mp.locator('h1', { hasText: 'Search the Bible' }).waitFor()
+    check('the Search button on a phone opens the search page', (await mp.getByRole('searchbox', { name: 'Search', exact: true }).count()) === 1)
     await mp.goto(BASE + '/bible/Rom/8/28-39', { waitUntil: 'networkidle' })
     check('verse ranges are marked on a phone', (await mp.locator('.verse.in-range').count()) === 12)
     await m.close()
