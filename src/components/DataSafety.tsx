@@ -107,7 +107,7 @@ export function DataProtectionStatus() {
           <span>To install, use your browser menu and choose “Install app” or “Add to Home Screen”.</span>
         )}
       </div>
-      <p className="small muted" style={{ margin: 0 }}>
+      <p className="small muted" style={{ margin: '8px 0 0' }}>
         Backups contain your notes, highlights, bookmarks, studies, sermons, folders, dictionary entries, and settings. They do not include the AI access
         code. <Link to="/sources">Bible data</Link> is part of the app and is not in backups.
       </p>
@@ -259,7 +259,8 @@ export function RestoreBackup() {
                 {error}
               </div>
             )}
-            <div className="row">
+            {/* pinned to the bottom so the buttons stay visible however long the list is */}
+            <div className="row restore-actions" style={{ position: 'sticky', bottom: -20, background: 'var(--surface)', padding: '12px 0 20px', marginBottom: -20, borderTop: '1px solid var(--border)' }}>
               <button className="btn primary" disabled={busy || (mode === 'replace' && !confirmReplace)} onClick={restore}>
                 {busy ? 'Restoring…' : mode === 'merge' ? 'Merge backup' : 'Replace with backup'}
               </button>
