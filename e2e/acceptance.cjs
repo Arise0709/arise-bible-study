@@ -20,6 +20,8 @@ function check(name, cond, detail = '') {
   } else {
     failures.push(name)
     console.log('  FAIL ' + name + (detail ? ' :: ' + detail : ''))
+    // shows up as an annotation on the GitHub Actions run
+    if (process.env.GITHUB_ACTIONS) console.log(`::error title=Browser test failed::${name}${detail ? ' :: ' + String(detail).replace(/\r?\n/g, ' ').slice(0, 300) : ''}`)
   }
 }
 const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, name + '.png') })
@@ -463,10 +465,13 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     await q.getByRole('button', { name: 'Note', exact: true }).click()
     await q.getByLabel(/Your note/).fill('Already on this device')
     await q.getByRole('button', { name: 'Save note' }).click()
+    // wait for the save to reach the database before leaving the page
+    await q.waitForFunction(() => new Promise((res) => { const o = indexedDB.open('arise-bible-study'); o.onsuccess = () => { const g = o.result.transaction('notes').objectStore('notes').count(); g.onsuccess = () => res(g.result === 1) } }))
     await q.goto(BASE + '/settings', { waitUntil: 'networkidle' })
     await q.getByTestId('restore-file').setInputFiles(bad)
     check('a file that is not a backup is refused with a clear message', /not an Arise Bible Study backup/.test(await q.getByRole('alert').innerText()))
-    check('nothing changed after the refused file', JSON.stringify(await notesNow()) === JSON.stringify(['Already on this device']))
+    const afterBad = await notesNow()
+    check('nothing changed after the refused file', JSON.stringify(afterBad) === JSON.stringify(['Already on this device']), JSON.stringify(afterBad))
     await q.getByTestId('restore-file').setInputFiles(good)
     const dlg = q.getByRole('dialog')
     await dlg.getByText('In backup').waitFor()
@@ -477,7 +482,8 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     await dlg.getByLabel(/Merge \(recommended\)/).check()
     await dlg.getByRole('button', { name: 'Merge backup' }).click()
     await q.locator('.toast', { hasText: /Restored/ }).waitFor()
-    check('merge adds the backup items and keeps current ones', JSON.stringify(await notesNow()) === JSON.stringify(['Already on this device', 'From the backup']))
+    const afterMerge = await notesNow()
+    check('merge adds the backup items and keeps current ones', JSON.stringify(afterMerge) === JSON.stringify(['Already on this device', 'From the backup']), JSON.stringify(afterMerge))
     await q.getByTestId('restore-file').setInputFiles(good)
     await dlg.getByText('In backup').waitFor()
     await dlg.getByLabel(/Replace everything/).check()
@@ -521,5 +527,6 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
   process.exit(failures.length ? 1 : 0)
 })().catch((e) => {
   console.error(e)
+  if (process.env.GITHUB_ACTIONS) console.log(`::error title=Browser tests crashed::${String(e?.message ?? e).replace(/\r?\n/g, ' ').slice(0, 400)}`)
   process.exit(2)
 })
