@@ -55,28 +55,113 @@ export function resolveBook(name: string): string | undefined {
 }
 
 const REF_RE =
-  /^\s*((?:[1-3]|i{1,3}|1st|2nd|3rd|first|second|third)?\s*[a-z][a-z .]*?)\.?\s*(\d+)(?:\s*[:.]\s*(\d+))?(?:\s*[-–]\s*(\d+)(?:\s*[:.]\s*(\d+))?)?\s*$/i
+  /^\s*((?:[1-3]|i{1,3}|1st|2nd|3rd|first|second|third)?\s*[a-z][a-z .]*?)\.?\s*(\d+)(?:\s*[:.]\s*(\d+)|\s+(\d+))?(?:\s*[-–—]\s*(\d+)(?:\s*[:.]\s*(\d+))?)?\s*$/i
 
-/** Parse "John 3:16", "Jn 3:16-18", "1 Cor 13", "Gen 1:1-2:3", "Ps 23". Returns undefined if not a reference. */
+/** Books with a single chapter. In these, "Jude 3" means verse 3 (chapter 1), as in printed Bibles. */
+export const SINGLE_CHAPTER_BOOKS = new Set(['Obad', 'Phlm', '2John', '3John', 'Jude'])
+
+/**
+ * Parse "John 3:16", "Jn 3:16-18", "1 Cor 13", "Gen 1:1-2:3", "Ps 23", "Phil 4 13", "Jude 3".
+ * Returns undefined if not a reference.
+ */
 export function parseRef(input: string): Ref | undefined {
   const m = REF_RE.exec(input)
   if (!m) return undefined
   const book = resolveBook(m[1])
   if (!book) return undefined
-  const chapter = parseInt(m[2], 10)
-  const ref: Ref = { book, chapter }
-  if (m[3]) ref.verse = parseInt(m[3], 10)
-  if (m[4]) {
-    if (m[5]) {
-      ref.endChapter = parseInt(m[4], 10)
-      ref.endVerse = parseInt(m[5], 10)
+  const first = parseInt(m[2], 10)
+  const verse = m[3] ?? m[4]
+  const ref: Ref = { book, chapter: first }
+  if (verse) ref.verse = parseInt(verse, 10)
+  else if (SINGLE_CHAPTER_BOOKS.has(book) && (first !== 1 || m[5])) {
+    // "Jude 3", "Jude 3-5", "Jude 1-4": the numbers are verses in chapter 1. A bare "Jude 1" is the whole book.
+    if (m[6]) return undefined // "Jude 3-1:4" is not meaningful
+    ref.chapter = 1
+    ref.verse = first
+    if (m[5]) ref.endVerse = parseInt(m[5], 10)
+    return ref
+  }
+  if (m[5]) {
+    if (m[6]) {
+      ref.endChapter = parseInt(m[5], 10)
+      ref.endVerse = parseInt(m[6], 10)
     } else if (ref.verse !== undefined) {
-      ref.endVerse = parseInt(m[4], 10)
+      ref.endVerse = parseInt(m[5], 10)
     } else {
-      ref.endChapter = parseInt(m[4], 10)
+      ref.endChapter = parseInt(m[5], 10)
     }
   }
   return ref
+}
+
+/**
+ * Parse a list such as "John 3:16,18", "Rom 8:28-30, 38-39", "Gen 1:1; 2:7", "John 3:16; Rom 5:8".
+ * Later parts without a book continue from the previous book and chapter.
+ * Returns undefined unless every part is a reference.
+ */
+export function parseRefList(input: string): Ref[] | undefined {
+  const parts = input.split(/[,;]/).map((p) => p.trim())
+  if (parts.length < 2 || parts.some((p) => !p)) return undefined
+  const first = parseRef(parts[0])
+  if (!first) return undefined
+  const out: Ref[] = [first]
+  let prev = first
+  for (const p of parts.slice(1)) {
+    let r = parseRef(p)
+    if (!r) {
+      const cv = /^(\d+)\s*[:.]\s*(\d+)(?:\s*[-–—]\s*(\d+))?$/.exec(p)
+      const v = /^(\d+)(?:\s*[-–—]\s*(\d+))?$/.exec(p)
+      if (cv) r = { book: prev.book, chapter: +cv[1], verse: +cv[2], ...(cv[3] ? { endVerse: +cv[3] } : {}) }
+      else if (v && prev.verse !== undefined) {
+        const c = prev.endChapter ?? prev.chapter
+        r = { book: prev.book, chapter: c, verse: +v[1], ...(v[2] ? { endVerse: +v[2] } : {}) }
+      } else if (v) r = { book: prev.book, chapter: +v[1], ...(v[2] ? { endChapter: +v[2] } : {}) }
+      else return undefined
+    }
+    out.push(r)
+    prev = r
+  }
+  return out
+}
+
+/** Closest book name for a misspelled one ("Jhon" -> John), for "Did you mean" hints. */
+export function suggestBook(name: string): string | undefined {
+  const n = norm(name)
+  if (n.length < 3) return undefined
+  let best: { id: string; d: number } | undefined
+  for (const b of BOOKS) {
+    for (const cand of [b.name, ...b.abbr.filter((a) => a.length >= 3)]) {
+      const c = norm(cand)
+      const raw = lev(n, c)
+      if (raw > (c.length <= 4 ? 1 : 2)) continue
+      const d = raw + (cand === b.name ? 0 : 0.5) // on a tie, a full book name beats an abbreviation
+      if (!best || d < best.d) best = { id: b.id, d }
+    }
+  }
+  return best?.id
+}
+
+/** Edit distance where swapping two neighboring letters ("Jhon") counts as one typo. */
+function lev(a: string, b: string): number {
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
+  for (let j = 1; j <= b.length; j++) d[0][j] = j
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1)
+    }
+  }
+  return d[a.length][b.length]
+}
+
+/** If `input` looks like a reference with a misspelled book, return the corrected text. */
+export function suggestRefText(input: string): string | undefined {
+  const m = /^\s*((?:[1-3]\s*)?[a-z][a-z .]*?)\.?\s*(\d.*)$/i.exec(input)
+  if (!m || resolveBook(m[1])) return undefined
+  const id = suggestBook(m[1])
+  if (!id) return undefined
+  const fixed = `${BOOK_BY_ID[id].name} ${m[2].trim()}`
+  return parseRef(fixed) || parseRefList(fixed) ? fixed : undefined
 }
 
 /** Parse an OSIS-style id: "John.3.16", "John.3.16-John.3.18", "Prov.8.22-Prov.8.30", "John.3". */
@@ -119,7 +204,35 @@ export function formatRef(r: Ref): string {
 }
 
 export function refPath(r: Ref): string {
-  return `/bible/${r.book}/${r.chapter}${r.verse !== undefined ? '/' + r.verse : ''}`
+  let v = ''
+  if (r.verse !== undefined) {
+    v = '/' + r.verse
+    if (r.endVerse !== undefined && r.endVerse > r.verse && (r.endChapter === undefined || r.endChapter === r.chapter)) v += '-' + r.endVerse
+  }
+  return `/bible/${r.book}/${r.chapter}${v}`
+}
+
+/** Path for a list of references in one chapter ("John 3:16,18" -> /bible/John/3/16,18). Falls back to the first. */
+export function refListPath(refs: Ref[]): string {
+  const [a] = refs
+  const same = refs.every((r) => r.book === a.book && r.chapter === a.chapter && r.verse !== undefined && (r.endChapter ?? r.chapter) === r.chapter)
+  if (!same) return refPath(a)
+  const spec = refs.map((r) => (r.endVerse !== undefined && r.endVerse > r.verse! ? `${r.verse}-${r.endVerse}` : `${r.verse}`)).join(',')
+  return `/bible/${a.book}/${a.chapter}/${spec}`
+}
+
+/** Read the verse part of a reader URL: "16", "28-39", "16,18,20-22". Returns verse numbers in order. */
+export function parseVerseSpec(spec: string | undefined): number[] {
+  if (!spec) return []
+  const out: number[] = []
+  for (const part of spec.split(',')) {
+    const m = /^\s*(\d+)\s*(?:-\s*(\d+))?\s*$/.exec(part)
+    if (!m) continue
+    const a = parseInt(m[1], 10)
+    const b = m[2] ? Math.min(parseInt(m[2], 10), a + 200) : a
+    for (let v = a; v <= Math.max(a, b); v++) if (!out.includes(v)) out.push(v)
+  }
+  return out
 }
 
 export const verseKey = (book: string, chapter: number, verse: number) => `${book}.${chapter}.${verse}`

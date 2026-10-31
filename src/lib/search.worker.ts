@@ -1,98 +1,69 @@
 /// <reference lib="webworker" />
-/* Full-text search over the KJV. Loads every book once, then answers word and phrase queries. */
+/* Scripture search in a background thread. Fetches only the parts of a translation's word index that a
+   search needs, then the small pages of verse text for the results. Everything loaded stays in memory. */
 import books from './books.json'
+import { SearchIndex, runSearch, type SearchLoader, type SearchQuery } from './searchEngine'
 
-interface Row {
-  key: string
-  book: string
-  text: string
-  lower: string
-}
-
-let rows: Row[] | null = null
-let loading: Promise<Row[]> | null = null
-
-function segText(s: [string, number?, number?]) {
-  return (s[1] ?? 0) & 4 ? s[0].toUpperCase() : s[0]
-}
-
-async function load(): Promise<Row[]> {
-  if (rows) return rows
-  if (!loading) {
-    loading = (async () => {
-      const out: Row[] = []
-      let done = 0
-      const results = await Promise.all(
-        (books as { id: string }[]).map(async (b) => {
-          const r = await fetch(`/data/kjv/${b.id}.json`)
-          if (!r.ok) throw new Error(`Could not load ${b.id} for searching (status ${r.status}).`)
-          const j = await r.json()
-          done++
-          ;(self as unknown as Worker).postMessage({ type: 'progress', done, total: books.length })
-          return j
-        }),
-      )
-      for (const book of results) {
-        for (const ch of book.chapters) {
-          for (const v of ch.verses) {
-            const text = v.s.map(segText).join('')
-            out.push({ key: `${book.id}.${ch.c}.${v.v}`, book: book.id, text, lower: text.toLowerCase().replace(/[’']/g, "'") })
-          }
-        }
-      }
-      rows = out
-      return out
-    })()
-  }
-  return loading
-}
-
-function escapeRe(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-export interface SearchRequest {
+export interface SearchRequest extends SearchQuery {
   id: number
-  query: string
-  mode: 'all' | 'phrase' | 'any'
-  scope: 'all' | 'OT' | 'NT' | string
-  wholeWord: boolean
-  limit: number
+  /** 'KJV' or a translation id from translations/index.json */
+  translation?: string
+}
+
+const post = (m: unknown) => (self as unknown as Worker).postMessage(m)
+
+async function get(url: string, what: string): Promise<Response> {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`Could not load ${what} for searching (status ${r.status}).`)
+  return r
+}
+
+const indexes = new Map<string, Promise<SearchIndex>>()
+function loadIndex(t: string): Promise<SearchIndex> {
+  let p = indexes.get(t)
+  if (!p) {
+    p = get(`/data/search/${t}/index.txt`, `the ${t} search index`)
+      .then((r) => r.text())
+      .then((text) => new SearchIndex(text))
+    p.catch(() => indexes.delete(t))
+    indexes.set(t, p)
+  }
+  return p
+}
+
+// Files are cached here for the session and by the browser's HTTP cache across visits.
+const files = new Map<string, Promise<string>>()
+function text(url: string, what: string): Promise<string> {
+  let p = files.get(url)
+  if (!p) {
+    p = get(url, what).then((r) => r.text())
+    p.catch(() => files.delete(url))
+    files.set(url, p)
+  }
+  return p
+}
+
+function loader(t: string): SearchLoader {
+  const base = `/data/search/${t}`
+  return {
+    shard: (k) => text(`${base}/w/${k}.txt`, 'the search index'),
+    vocab: () => text(`${base}/vocab.txt`, 'the word list'),
+    page: async (n) => (await text(`${base}/p/${n}.txt`, 'verse text')).replace(/\n$/, '').split('\n').map((l) => l || null),
+  }
 }
 
 self.onmessage = async (e: MessageEvent<SearchRequest>) => {
-  const { id, query, mode, scope, wholeWord, limit } = e.data
+  const { id, translation = 'KJV', ...q } = e.data
   try {
-    const data = await load()
-    const q = query.trim().toLowerCase().replace(/[’']/g, "'")
-    let phrase = mode === 'phrase'
-    let terms: string[]
-    const quoted = /^"(.+)"$/.exec(q)
-    if (quoted) {
-      phrase = true
-      terms = [quoted[1]]
-    } else {
-      terms = phrase ? [q] : q.split(/\s+/).filter(Boolean)
-    }
-    const res = terms.map((t) => {
-      const body = escapeRe(t).replace(/\\\*/g, '\\w*') // allow trailing * as wildcard
-      return new RegExp(wholeWord ? `(?<![\\w'])${body}(?![\\w'])` : body, 'i')
+    const t = /^[A-Za-z0-9]+$/.test(translation) ? translation : 'KJV'
+    post({ type: 'progress', done: 0, total: 1 })
+    const idx = await loadIndex(t)
+    const out = await runSearch(idx, loader(t), books as { id: string; testament: string }[], q, (partial) => {
+      post({ type: 'progress', done: 1, total: 1 })
+      post({ type: 'partial', id, ...partial })
     })
-    const ot = new Set((books as { id: string; testament: string }[]).filter((b) => b.testament === 'OT').map((b) => b.id))
-    const hits: { key: string; text: string }[] = []
-    let total = 0
-    for (const r of data) {
-      if (scope === 'OT' && !ot.has(r.book)) continue
-      if (scope === 'NT' && ot.has(r.book)) continue
-      if (scope !== 'all' && scope !== 'OT' && scope !== 'NT' && r.book !== scope) continue
-      const ok = mode === 'any' && !phrase ? res.some((re) => re.test(r.lower)) : res.every((re) => re.test(r.lower))
-      if (ok) {
-        total++
-        if (hits.length < limit) hits.push({ key: r.key, text: r.text })
-      }
-    }
-    ;(self as unknown as Worker).postMessage({ type: 'result', id, hits, total, terms })
+    post({ type: 'result', id, ...out })
   } catch (err) {
-    ;(self as unknown as Worker).postMessage({ type: 'error', id, message: (err as Error).message })
+    post({ type: 'error', id, message: (err as Error).message })
   }
 }

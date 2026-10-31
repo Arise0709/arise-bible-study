@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
 import { Bookmark, BookOpen, ChevronLeft, ChevronRight, Copy, Highlighter, Link2, NotebookPen, Plus, StickyNote, X } from 'lucide-react'
 import { FLAG_ADDED, FLAG_DIVINE, FLAG_RED, getPassage, passageToText, loadBook, loadBookIndex, loadTranslationBook, loadTranslationIndex, parseWord, segText, verseText, type Book, type Segment, type Verse } from '../lib/data'
-import { BOOKS, BOOK_BY_ID, BOOK_INDEX, formatRef, toOsis, type Ref } from '../lib/refs'
+import { BOOKS, BOOK_BY_ID, BOOK_INDEX, formatRef, parseOsis, toOsis, type Ref } from '../lib/refs'
 import { quoteTr, useStudy, useStudySink } from '../lib/state'
 import { db, emptyWorksheet, uid, type Highlight, type VerseNote } from '../db/db'
 import { Dialog, ErrorBox, Loading, toast, toastUndo, useAsync } from './ui'
@@ -19,9 +19,11 @@ interface Props {
   target?: number
   onNavigate: (book: string, chapter: number, verse?: number) => void
   inPanel?: boolean
+  /** Every requested verse ("16,18" or "28-39"), highlighted together. */
+  targets?: number[]
 }
 
-export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
+export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: Props) {
   const { data: index } = useAsync(loadBookIndex, [])
   const { data: bookData, error, loading, reload } = useAsync(() => loadBook(book), [book])
   const { settings, updateSettings, selection, select, setFocusVerse, setTool, setToolsOpen } = useStudy()
@@ -48,7 +50,16 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
   const bookmarks = useLiveQuery(() => db.bookmarks.where('book').equals(book).toArray(), [book]) ?? []
   const notes = useLiveQuery(() => db.notes.where('book').equals(book).toArray(), [book]) ?? []
   const hlMap = useMemo(() => new Map(highlights.map((h) => [h.key, h.color])), [highlights])
-  const bmSet = useMemo(() => new Set(bookmarks.map((b) => b.key)), [bookmarks])
+  // Every verse in this chapter covered by a bookmark, including verse ranges and whole-chapter bookmarks.
+  const bmCovered = useMemo(() => {
+    const m = new Map<number, string>()
+    for (const b of bookmarks) for (const v of bookmarkVerses(b.key, chapter)) if (!m.has(v)) m.set(v, b.label)
+    return m
+  }, [bookmarks, chapter])
+  const targetList = targets?.length ? targets : target ? [target] : []
+  const targetKey = targetList.join(',')
+  const rangeSet = useMemo(() => new Set(targetKey.includes(',') ? targetKey.split(',').map(Number) : []), [targetKey])
+  const missingTargets = ch ? targetList.filter((v) => !ch.verses.some((x) => x.v === v) && !extraVerses.some((x) => x.v === v)) : []
   const notesByVerse = useMemo(() => {
     const m = new Map<number, VerseNote[]>()
     for (const n of notes) {
@@ -62,14 +73,16 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
 
   useEffect(() => {
     if (!ch) return
-    const el = target ? document.getElementById(`v-${book}-${chapter}-${target}`) : null
-    if (el) {
-      el.scrollIntoView({ block: 'center' })
-      el.classList.remove('target')
-      void el.offsetWidth
-      el.classList.add('target')
+    const els = targetList.map((v) => document.getElementById(`v-${book}-${chapter}-${v}`)).filter((x): x is HTMLElement => !!x)
+    if (els.length) {
+      els[0].scrollIntoView({ block: 'center' })
+      for (const el of els) {
+        el.classList.remove('target')
+        void el.offsetWidth
+        el.classList.add('target')
+      }
     } else scrollRef.current?.scrollTo({ top: 0 })
-  }, [ch, book, chapter, target])
+  }, [ch, book, chapter, targetKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = (delta: number) => {
     let bi = BOOK_INDEX[book]
@@ -137,13 +150,21 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
   }
 
   const toggleBookmark = async () => {
-    if (!selRef) return
+    if (!selRef || !sel) return
     const key = toOsis(selRef)
     const existing = await db.bookmarks.where('key').equals(key).first()
     if (existing) {
       await db.bookmarks.delete(existing.id)
       toastUndo('Bookmark removed', () => db.bookmarks.put(existing))
     } else {
+      // no duplicates: a selection already inside one bookmark is not bookmarked again
+      const all = await db.bookmarks.where('book').equals(book).toArray()
+      const wanted = selectedVerses.map((v) => v.v)
+      const holder = all.find((b) => { const cov = bookmarkVerses(b.key, chapter); return wanted.length > 0 && wanted.every((v) => cov.includes(v)) })
+      if (holder) {
+        toast(`Already bookmarked as ${holder.label}`)
+        return
+      }
       await db.bookmarks.add({ id: uid(), key, book, label: formatRef(selRef), createdAt: Date.now() })
       toast(`Bookmarked ${formatRef(selRef)}`)
     }
@@ -266,6 +287,11 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
             </div>
           )}
           {(primaryErr || compareErr) && <ErrorBox error={(primaryErr ?? compareErr)!} />}
+          {missingTargets.length > 0 && (
+            <div className="notice warn" role="status" data-testid="missing-verse" style={{ fontFamily: 'var(--ui-font)', fontSize: 'calc(var(--ui-size) * 0.9)', marginBottom: 12 }}>
+              {bookData.name} {chapter} has {ch.verses.length} verses, so {missingTargets.length === 1 ? `verse ${missingTargets[0]} does` : `verses ${missingTargets.join(', ')} do`} not exist. Showing the whole chapter.
+            </div>
+          )}
           {ch.title && primary === 'KJV' && (
             <p className="psalm-title">
               <Segments segs={ch.title} verse={null} book={book} chapter={chapter} />
@@ -279,7 +305,7 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
             return (
               <Fragment key={v.v}>
                 {v.h && <div className="acrostic">{v.h}</div>}
-                <span id={`v-${book}-${chapter}-${v.v}`} className={`verse vline ${v.p ? 'paragraph' : ''} ${hl ? 'hl-' + hl : ''} ${isSel ? 'selected' : ''}`}>
+                <span id={`v-${book}-${chapter}-${v.v}`} className={`verse vline ${v.p ? 'paragraph' : ''} ${hl ? 'hl-' + hl : ''} ${isSel ? 'selected' : ''} ${rangeSet.has(v.v) ? 'in-range' : ''}`}>
                   <button className="vnum" onClick={(e) => onVerseNum(v.v, e.shiftKey)} aria-label={`Select verse ${v.v}`} aria-pressed={!!isSel}>
                     {v.v}
                   </button>
@@ -288,9 +314,9 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
                   ) : (
                     <span>{altVerse(primaryBook, v.v) ?? (primaryBook ? <em className="muted">(This verse is not in the {primary}.)</em> : '')}</span>
                   )}
-                  {(bmSet.has(key) || vnotes.length > 0) && (
-                    <span className="vmarks" aria-label={`${bmSet.has(key) ? 'Bookmarked. ' : ''}${vnotes.length ? vnotes.length + ' note(s)' : ''}`}>
-                      {bmSet.has(key) && <Bookmark size={11} aria-hidden />}
+                  {(bmCovered.has(v.v) || vnotes.length > 0) && (
+                    <span className="vmarks" aria-label={`${bmCovered.has(v.v) ? `Bookmarked (${bmCovered.get(v.v)}). ` : ''}${vnotes.length ? vnotes.length + ' note(s)' : ''}`}>
+                      {bmCovered.has(v.v) && <Bookmark size={11} aria-hidden />}
                       {vnotes.length > 0 && (
                         <button
                           className="reflink"
@@ -350,7 +376,7 @@ export function Reader({ book, chapter, target, onNavigate, inPanel }: Props) {
           <button className="iconbtn" onClick={() => highlight(null)} aria-label="Remove highlight" title="Remove highlight">
             <X size={16} />
           </button>
-          <button className="btn sm" onClick={toggleBookmark}>
+          <button className="btn sm" onClick={toggleBookmark} aria-pressed={!!selRef && bookmarks.some((b) => b.key === toOsis(selRef))}>
             <Bookmark size={15} /> Bookmark
           </button>
           <button className="btn sm" onClick={() => setNoteFor(selRef)}>
@@ -507,3 +533,17 @@ export function NoteDialog({ target, onClose, existing }: { target: Ref | null; 
 }
 
 export type { Book }
+
+/** Verse numbers in `chapter` covered by a bookmark key ("John.3.16", "John.3.16-John.3.17", "Gen.1.1-Gen.2.3", "Ps.23"). */
+function bookmarkVerses(key: string, chapter: number, max = 200): number[] {
+  const r = parseOsis(key)
+  if (!r) return []
+  const endC = r.endChapter ?? r.chapter
+  if (chapter < r.chapter || chapter > endC) return []
+  const from = chapter === r.chapter ? (r.verse ?? 1) : 1
+  let to = max
+  if (chapter === endC) to = r.endVerse ?? (r.endChapter === undefined && r.verse !== undefined ? r.verse : max)
+  const out: number[] = []
+  for (let v = from; v <= Math.min(to, max); v++) out.push(v)
+  return out
+}

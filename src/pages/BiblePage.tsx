@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { Reader } from '../components/Reader'
 import { ToolsPane } from '../components/ToolsPane'
 import { useMediaQuery } from '../components/ui'
-import { BOOK_BY_ID, resolveBook } from '../lib/refs'
+import { BOOK_BY_ID, parseVerseSpec, resolveBook } from '../lib/refs'
 import { useStudy } from '../lib/state'
 import { recordSession } from '../db/db'
 
@@ -14,18 +14,21 @@ export function BiblePage() {
   const nav = useNavigate()
   const book = resolveBook(params.book ?? '') ?? 'John'
   const chapter = Math.max(1, parseInt(params.chapter ?? '1', 10) || 1)
-  const verse = params.verse ? parseInt(params.verse, 10) : undefined
+  // "16", "28-39", or "16,18": every verse listed is highlighted
+  const verses = parseVerseSpec(params.verse)
+  const verse = verses[0]
+  const spec = params.verse && verses.length ? params.verse : undefined
   const wide = useMediaQuery('(min-width: 901px)')
   const { toolsOpen, setToolsOpen } = useStudy()
 
   useEffect(() => {
-    if (params.book && resolveBook(params.book) !== params.book) nav(`/bible/${book}/${chapter}${verse ? '/' + verse : ''}`, { replace: true })
+    if (params.book && resolveBook(params.book) !== params.book) nav(`/bible/${book}/${chapter}${spec ? '/' + spec : ''}`, { replace: true })
     recordSession('bible', `/bible/${book}/${chapter}`, `${BOOK_BY_ID[book].name} ${chapter}`)
     document.title = `${BOOK_BY_ID[book].name} ${chapter} · Arise Bible Study`
-  }, [book, chapter, verse, params.book, nav])
+  }, [book, chapter, spec, params.book, nav])
 
   const onNavigate = (b: string, c: number, v?: number) => nav(`/bible/${b}/${c}${v ? '/' + v : ''}`)
-  const reader = <Reader book={book} chapter={chapter} target={verse} onNavigate={onNavigate} />
+  const reader = <Reader book={book} chapter={chapter} target={verse} targets={verses} onNavigate={onNavigate} />
 
   if (wide) {
     return (

@@ -8,7 +8,7 @@ import { Empty, ErrorBox, Loading, Tabs, timeAgo, toast, toastUndo, useAsync } f
 import { LinkedText, ScriptureRef } from '../components/Scripture'
 import { loadSources, loadTranslationIndex } from '../lib/data'
 import { aiStatus, getAiCode, setAiCode } from '../ai/assist'
-import { BOOKS, formatRef, parseOsis, parseRef, refPath } from '../lib/refs'
+import { BOOKS, formatRef, parseOsis, parseRef, parseRefList, refListPath, refPath, suggestRefText } from '../lib/refs'
 import { onSearchProgress, searchBible, type SearchResult } from '../lib/search'
 import { DEFAULTS, useStudy } from '../lib/state'
 import { ACCENTS, LINE_SPACING, SCRIPTURE_FONTS, TONES, UI_FONTS } from '../lib/appearance'
@@ -241,11 +241,17 @@ export function SearchPage() {
   const scope = params.get('scope') ?? 'all'
   const mode = (params.get('mode') ?? 'all') as 'all' | 'phrase' | 'any'
   const whole = params.get('whole') !== '0'
+  const tr = params.get('t') ?? 'KJV'
+  const forms = params.get('forms') === '1'
+  const isPhrase = mode === 'phrase' || /^\s*".+"\s*$/.test(q)
   const [input, setInput] = useState(q)
   const [progress, setProgress] = useState<string>('')
   const [res, setRes] = useState<SearchResult | null>(null)
   const [err, setErr] = useState<Error | null>(null)
   const [limit, setLimit] = useState(100)
+  const { data: tIndex } = useAsync(() => loadTranslationIndex().catch(() => []), [])
+  const trInfo = tIndex?.find((t) => t.id === tr)
+  const refHint = q ? suggestRefText(q) : undefined
   useEffect(() => setInput(q), [q])
 
   useEffect(() => {
@@ -256,6 +262,11 @@ export function SearchPage() {
       nav(refPath(r), { replace: true })
       return
     }
+    const list = parseRefList(q)
+    if (list) {
+      nav(refListPath(list), { replace: true })
+      return
+    }
     const sm = /^\s*([HhGg])0*(\d{1,4})\s*$/.exec(q)
     if (sm) {
       nav(`/dictionary?strongs=${sm[1].toUpperCase()}${parseInt(sm[2], 10)}`, { replace: true })
@@ -264,8 +275,8 @@ export function SearchPage() {
     let alive = true
     setErr(null)
     setRes(null)
-    onSearchProgress((d, t) => alive && setProgress(d < t ? `Preparing search index (${d} of ${t} books)…` : ''))
-    searchBible({ query: q, mode, scope, wholeWord: whole, limit }).then(
+    onSearchProgress((d, t) => alive && setProgress(d < t ? 'Preparing the search index…' : ''))
+    searchBible({ query: q, mode, scope, wholeWord: whole, limit, translation: tr, forms: forms && !isPhrase }, (p) => alive && setRes(p)).then(
       (r2) => alive && setRes(r2),
       (e) => alive && setErr(e),
     )
@@ -273,16 +284,17 @@ export function SearchPage() {
       alive = false
       onSearchProgress(null)
     }
-  }, [q, scope, mode, whole, limit, nav])
+  }, [q, scope, mode, whole, limit, tr, forms, isPhrase, nav])
 
   const set = (k: string, v: string) => {
     const p = new URLSearchParams(params)
     p.set(k, v)
     setParams(p)
   }
+  const added = res?.formsUsed.flat() ?? []
   return (
     <div className="page stack">
-      <h1>Search the KJV</h1>
+      <h1>Search the Bible</h1>
       <form
         className="row"
         onSubmit={(e) => {
@@ -293,7 +305,16 @@ export function SearchPage() {
         <input type="search" value={input} onChange={(e) => setInput(e.target.value)} placeholder='Word, phrase in "quotes", reference (Rom 8:28), or Strong&apos;s number (G26)' style={{ flex: 1, minWidth: 220 }} aria-label="Search" />
         <button className="btn primary">Search</button>
       </form>
-      <div className="row small">
+      <div className="row small" style={{ flexWrap: 'wrap' }}>
+        <label>
+          Translation{' '}
+          <select value={tr} onChange={(e) => set('t', e.target.value)} aria-label="Translation to search">
+            <option value="KJV">KJV</option>
+            {tIndex?.map((t) => (
+              <option key={t.id} value={t.id}>{t.id}</option>
+            ))}
+          </select>
+        </label>
         <label>
           Match{' '}
           <select value={mode} onChange={(e) => set('mode', e.target.value)}>
@@ -316,25 +337,54 @@ export function SearchPage() {
         <label className="row" style={{ gap: 4 }}>
           <input type="checkbox" checked={whole} onChange={(e) => set('whole', e.target.checked ? '1' : '0')} /> whole words only
         </label>
+        <label className="row" style={{ gap: 4 }} title={isPhrase ? 'Exact phrases are always matched exactly' : undefined}>
+          <input type="checkbox" checked={forms && !isPhrase} disabled={isPhrase} onChange={(e) => set('forms', e.target.checked ? '1' : '0')} /> include related word forms (believe, believed, believeth)
+        </label>
         <span className="muted">Tip: add * for word endings, e.g. believ*</span>
       </div>
+      {refHint && (
+        <div className="notice info small" data-testid="ref-suggestion">
+          Looking for a passage? Did you mean <Link to={`/search?q=${encodeURIComponent(refHint)}`}>{refHint}</Link>?
+        </div>
+      )}
       {progress && <Loading label={progress} />}
       {err && <ErrorBox error={err} />}
       {q && !res && !err && !progress && <Loading label="Searching" />}
       {res && (
         <>
           <div className="muted">
-            {res.total} verse{res.total === 1 ? '' : 's'} found{res.total > res.hits.length ? `, showing ${res.hits.length}` : ''}.
+            {res.total} verse{res.total === 1 ? '' : 's'} found{res.total > res.hits.length ? `, showing ${res.hits.length}` : ''} in the {tr === 'KJV' ? 'King James Version' : trInfo?.name ?? tr}.
           </div>
+          {added.length > 0 && (
+            <div className="small muted" data-testid="forms-used">
+              Including related word forms: {added.slice(0, 20).join(', ')}
+              {added.length > 20 ? ` and ${added.length - 20} more` : ''}.
+            </div>
+          )}
+          {res.total === 0 && res.suggestion && (
+            <div className="notice info small" data-testid="search-suggestion">
+              Did you mean{' '}
+              <button className="reflink" onClick={() => set('q', res.suggestion!)}>
+                {res.suggestion}
+              </button>
+              ?
+            </div>
+          )}
           <ul className="list occ-list">
             {res.hits.map((h) => (
               <li key={h.key}>
-                <ScriptureRef r={h.key} preview={false} /> <Highlighted text={h.text} term={res.terms.length === 1 ? res.terms[0].replace(/\*$/, '') : ''} />
+                <ScriptureRef r={h.key} preview={false} />{' '}
+                {res.partial ? <span className="muted">…</span> : <Highlighted text={h.text} term={res.terms.length === 1 && !added.length ? res.terms[0].replace(/\*$/, '') : ''} />}
               </li>
             ))}
           </ul>
           {res.total > res.hits.length && (
             <button className="btn" onClick={() => setLimit(limit + 200)}>Show more</button>
+          )}
+          {tr !== 'KJV' && trInfo && (
+            <p className="small muted" style={{ margin: 0 }}>
+              Text: {trInfo.name} ({trInfo.year}), {trInfo.license}. <Link to="/sources">Sources and licenses</Link>
+            </p>
           )}
         </>
       )}

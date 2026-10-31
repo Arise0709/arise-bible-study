@@ -652,6 +652,14 @@ kbd {
 .verse.target {
   animation: flash 1.8s ease-out;
 }
+/* every verse of a requested range or list ("Rom 8:28-39", "John 3:16,18") stays marked */
+.verse.in-range {
+  box-shadow: inset 3px 0 0 var(--accent);
+  border-radius: 2px;
+}
+.verse.in-range:not([class*='hl-']) {
+  background: var(--accent-soft);
+}
 @keyframes flash {
   0% {
     background: var(--word-selected);

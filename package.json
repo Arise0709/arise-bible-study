@@ -11,7 +11,8 @@
     "test": "vitest run",
     "e2e": "node e2e/acceptance.cjs",
     "data:fetch": "bash scripts/fetch_sources.sh",
-    "data:build": "bash scripts/build_all.sh"
+    "data:build": "bash scripts/build_all.sh",
+    "data:search": "node scripts/build_search.mjs"
   },
   "dependencies": {
     "dexie": "^4.4.7",

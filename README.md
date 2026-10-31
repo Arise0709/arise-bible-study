@@ -121,7 +121,15 @@ npm run data:fetch
 npm run data:build
 ```
 
-Requires Python 3.10+.
+Requires Python 3.10+ and Node.js.
+
+The search files in `public/data/search` are built from the Bible text by `scripts/build_search.mjs` (part of `data:build`). After changing any Bible text, rebuild them alone with:
+
+```bash
+npm run data:search
+```
+
+Each translation gets a small word index split by first letter and its text in pages of 64 verses, so a search downloads only what it needs. `tests/search.test.ts` runs the original full-scan search side by side with the new engine and requires identical results.
 
 ## Project layout
 
