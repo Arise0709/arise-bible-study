@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, BookA, Info, Languages, Plus } from 'lucide-react'
-import { loadBook, loadConcordance, loadStrongs, parseWord, segText, verseText, type StrongsEntry } from '../lib/data'
+import { loadChapter, loadConcordance, loadStrongs, parseWord, segText, verseText, type StrongsEntry } from '../lib/data'
 import { decodeNumericKey, formatRef, toOsis } from '../lib/refs'
 import { describeMorph } from '../lib/morph'
 import { useStudy, useStudySink } from '../lib/state'
@@ -27,7 +27,10 @@ export function WordPanel() {
 
   useEffect(() => setStack([]), [selection])
 
-  const { data: book, error, loading } = useAsync(() => (selection ? loadBook(selection.book) : Promise.resolve(undefined)), [selection?.book])
+  const { data: chapterData, error, loading } = useAsync(
+    () => (selection ? loadChapter(selection.book, selection.chapter) : Promise.resolve(undefined)),
+    [selection?.book, selection?.chapter],
+  )
 
   if (stack.length) {
     return (
@@ -54,7 +57,7 @@ export function WordPanel() {
   }
   if (loading) return <Loading />
   if (error) return <ErrorBox error={error} />
-  const verse = book?.chapters[selection.chapter - 1]?.verses.find((v) => v.v === selection.verse)
+  const verse = chapterData?.verses.find((v) => v.v === selection.verse)
   if (!verse) return <ErrorBox error={new Error('That verse could not be found.')} />
   const ref = { book: selection.book, chapter: selection.chapter, verse: selection.verse }
 
@@ -406,13 +409,13 @@ function Occurrences({ entry, refs, page, setPage, current }: { entry: StrongsEn
   const slice = refs.slice(page * PAGE, page * PAGE + PAGE)
   const keys = useMemo(() => slice.map(decodeNumericKey), [slice.join()])
   const { data: texts, loading } = useAsync(async () => {
-    const out: string[] = []
-    for (const k of keys) {
-      const b = await loadBook(k.book)
-      const v = b.chapters[k.chapter - 1]?.verses.find((x) => x.v === k.verse)
-      out.push(v ? verseText(v) : '')
-    }
-    return out
+    // each verse's chapter file, fetched in parallel
+    return Promise.all(
+      keys.map(async (k) => {
+        const v = (await loadChapter(k.book, k.chapter)).verses.find((x) => x.v === k.verse)
+        return v ? verseText(v) : ''
+      }),
+    )
   }, [keys.map((k) => `${k.book}.${k.chapter}.${k.verse}`).join()])
   const pages = Math.ceil(refs.length / PAGE)
   return (

@@ -28,6 +28,15 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
 
 ;(async () => {
   const browser = await chromium.launch()
+  // Service workers are off unless a test turns them on (mocked responses can't see requests a worker handles).
+  // Every page also reports anything the security policy blocks, so a header can't silently break a feature.
+  const cspViolations = []
+  const newContext = browser.newContext.bind(browser)
+  browser.newContext = async (opts = {}) => {
+    const c = await newContext({ serviceWorkers: 'block', ...opts })
+    c.on('page', (pg) => pg.on('console', (m) => { if (/Content Security Policy|Refused to (load|execute|apply|connect|frame)/i.test(m.text())) cspViolations.push(m.text().slice(0, 200)) }))
+    return c
+  }
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true })
   const p = await ctx.newPage()
   const errors = []
@@ -619,7 +628,163 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     await m.close()
   }
 
+  console.log('19. Accessibility, two tabs, range notes, offline, security (Kaizen Cycle 3)')
+  {
+    const c = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const q = await c.newPage()
+    q.on('pageerror', (e) => errors.push(e.message))
+    const active = () => q.evaluate(() => { const e = document.activeElement; return e ? (e.getAttribute('aria-label') || e.textContent || '').trim().slice(0, 60) : '' })
+    // keyboard stops and keyboard-only reading
+    await q.goto(BASE + '/bible/John/3', { waitUntil: 'networkidle' })
+    await q.locator('body').click({ position: { x: 1, y: 1 } })
+    const seen = new Set()
+    let reachedVerse = false
+    for (let i = 0; i < 400; i++) {
+      await q.keyboard.press('Tab')
+      const id = await q.evaluate(() => { const e = document.activeElement; if (!e || e === document.body) return 'body'; e.dataset.k ??= Math.random().toString(36).slice(2); return e.dataset.k })
+      if (seen.has(id)) break
+      seen.add(id)
+      if (!reachedVerse && (await active()) === 'Select verse 1') {
+        reachedVerse = true
+        break
+      }
+    }
+    check('Tab reaches the chapter text as a single stop', reachedVerse)
+    await q.keyboard.press('ArrowDown')
+    await q.keyboard.press('ArrowDown')
+    check('Down arrow moves verse by verse', (await active()) === 'Select verse 3')
+    await q.keyboard.press('ArrowRight')
+    check('Right arrow moves into the words of the verse', /^Jesus/.test(await active()))
+    await q.keyboard.press('Enter')
+    await q.locator('div.panel[aria-label="Study tools"]').locator("text=/Strong's G\\d+/").first().waitFor()
+    check('Enter on a word opens its Hebrew or Greek word study', true)
+    await q.keyboard.press('ArrowUp')
+    check('Up arrow returns to the verse number', (await active()) === 'Select verse 3')
+    await q.keyboard.press('Enter')
+    await q.locator('.verse-actions').waitFor()
+    check('Enter on a verse number selects the verse and shows its actions', (await q.locator('.verse-actions strong').innerText()) === 'John 3:3')
+    await q.keyboard.press('Escape')
+    await q.keyboard.press('End')
+    check('End jumps to the last verse', (await active()) === 'Select verse 36')
+    const stops = await q.evaluate(() => [...document.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea, [tabindex]')].filter((e) => e.tabIndex >= 0 && (e.offsetParent || e.getClientRects().length)).length)
+    check('fewer than 60 keyboard stops on a chapter page', stops < 60, String(stops))
+    // notes on a verse range
+    await q.goto(BASE + '/bible/John/3', { waitUntil: 'networkidle' })
+    await q.locator('#v-John-3-16 .vnum').click()
+    await q.locator('#v-John-3-18 .vnum').click({ modifiers: ['Shift'] })
+    await q.locator('.verse-actions').getByRole('button', { name: 'Note', exact: true }).click()
+    await q.getByLabel(/Your note/).fill('God so loved, and the condemnation that follows')
+    await q.getByRole('button', { name: 'Save note' }).click()
+    await q.locator('#v-John-3-18 .vmarks button').waitFor()
+    check('a note on John 3:16-18 shows on all three verses', (await q.locator('#v-John-3-16 .vmarks button, #v-John-3-17 .vmarks button, #v-John-3-18 .vmarks button').count()) === 3 && (await q.locator('#v-John-3-15 .vmarks, #v-John-3-19 .vmarks').count()) === 0)
+    const noteCount = await q.evaluate(() => new Promise((res) => { const o = indexedDB.open('arise-bible-study'); o.onsuccess = () => { const g = o.result.transaction('notes').objectStore('notes').count(); g.onsuccess = () => res(g.result) } }))
+    check('one range note is stored once (no duplicates)', noteCount === 1, String(noteCount))
+    const tools = q.locator('div.panel[aria-label="Study tools"]')
+    await tools.getByRole('tab', { name: /Notes/ }).click()
+    await tools.getByRole('button', { name: 'Delete note' }).first().click()
+    await q.locator('#v-John-3-17 .vmarks').waitFor({ state: 'detached' })
+    check('deleting the note clears all three markers at once', (await q.locator('#v-John-3-16 .vmarks, #v-John-3-17 .vmarks, #v-John-3-18 .vmarks').count()) === 0)
+    // cross-chapter range
+    await q.goto(BASE + '/bible/Gen/1/1-2:3', { waitUntil: 'networkidle' })
+    await q.locator('#v-Gen-1-31.in-range').waitFor()
+    check('Genesis 1:1-2:3 marks all of chapter 1', (await q.locator('.verse.in-range').count()) === 31)
+    await q.getByTestId('passage-continues').getByRole('link').click()
+    await q.waitForURL(/\/bible\/Gen\/2\/1-3$/)
+    await q.locator('#v-Gen-2-3.in-range').waitFor()
+    check('the "continues" link carries the range into Genesis 2:1-3', (await q.locator('.verse.in-range').count()) === 3)
+    // security headers
+    const h = (await q.request.get(BASE + '/')).headers()
+    check('security headers are sent (CSP, nosniff, frame, referrer, permissions)', /default-src 'self'/.test(h['content-security-policy'] || '') && h['x-content-type-options'] === 'nosniff' && h['x-frame-options'] === 'DENY' && !!h['referrer-policy'] && !!h['permissions-policy'], JSON.stringify(h).slice(0, 200))
+    const outside = await q.evaluate(() => performance.getEntriesByType('resource').map((r) => r.name).filter((u) => !u.startsWith(location.origin)))
+    check('no requests to other sites (fonts are self-hosted)', outside.length === 0, outside.join(' '))
+    await c.close()
+  }
+  {
+    // two tabs editing the same outline
+    const c = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const a = await c.newPage()
+    a.on('pageerror', (e) => errors.push(e.message))
+    await a.goto(BASE + '/sermons', { waitUntil: 'networkidle' })
+    await a.getByRole('button', { name: 'New outline' }).click()
+    await a.getByRole('button', { name: /Blank/ }).click()
+    await a.waitForURL(/\/sermons\/[^/]+$/)
+    await a.locator('#stitle').fill('Start')
+    await a.locator('[data-status="saved"]').waitFor()
+    const url = a.url()
+    const b = await c.newPage()
+    b.on('pageerror', (e) => errors.push(e.message))
+    await b.goto(url, { waitUntil: 'networkidle' })
+    const title = () => a.evaluate(() => new Promise((res) => { const o = indexedDB.open('arise-bible-study'); o.onsuccess = () => { const g = o.result.transaction('sermons').objectStore('sermons').getAll(); g.onsuccess = () => res(g.result.map((x) => x.title).sort()) } }))
+    // idle tab picks up the other tab's change
+    await b.locator('#stitle').fill('Changed in tab B')
+    await b.locator('[data-status="saved"]').waitFor()
+    await a.locator('.toast', { hasText: 'changed in another tab' }).waitFor()
+    check('an idle tab loads the newer version from another tab and says so', (await a.locator('#stitle').inputValue()) === 'Changed in tab B')
+    // both tabs edit: tab A has unsaved typing when tab B's save lands
+    await a.locator('#stitle').fill('Tab A edit')
+    await b.evaluate(() => new Promise((res) => {
+      const o = indexedDB.open('arise-bible-study')
+      o.onsuccess = () => {
+        const st = o.result.transaction('sermons', 'readwrite').objectStore('sermons')
+        const g = st.getAll()
+        g.onsuccess = () => { const rec = g.result[0]; st.put({ ...rec, title: 'Tab B edit', updatedAt: Date.now() + 5 }).onsuccess = res }
+      }
+    }))
+    await a.getByTestId('edit-conflict').waitFor({ timeout: 8000 })
+    check('editing in both tabs shows a warning instead of overwriting', JSON.stringify(await title()) === JSON.stringify(['Tab B edit']), JSON.stringify(await title()))
+    check('the save indicator says it was not saved', /changed in another tab/.test(await a.locator('.save-state').innerText()))
+    await a.getByTestId('edit-conflict').getByRole('button', { name: 'Keep my version' }).click()
+    await a.getByTestId('edit-conflict').waitFor({ state: 'detached' })
+    await a.locator('[data-status="saved"]').waitFor()
+    check('"Keep my version" saves it and keeps the other version as a separate copy', JSON.stringify(await title()) === JSON.stringify(["Tab A edit", "Tab B edit (other tab's version)"]), JSON.stringify(await title()))
+    await c.close()
+  }
+  {
+    // offline reading with the service worker on
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, serviceWorkers: 'allow' })
+    const q = await c.newPage()
+    q.on('pageerror', (e) => errors.push(e.message))
+    await q.goto(BASE + '/bible/John/3', { waitUntil: 'networkidle' })
+    await q.evaluate(async () => { await navigator.serviceWorker.ready })
+    await q.reload({ waitUntil: 'networkidle' })
+    check('the offline service worker is active', await q.evaluate(() => !!navigator.serviceWorker.controller))
+    await q.goto(BASE + '/settings', { waitUntil: 'networkidle' })
+    await q.getByRole('button', { name: 'Download BSB' }).click()
+    await q.getByTestId('offline-BSB').filter({ hasText: 'Available offline' }).waitFor({ timeout: 120000 })
+    check('downloading a Bible for offline use completes (KJV included)', /Available offline/.test(await q.getByTestId('offline-KJV').innerText()))
+    await c.setOffline(true)
+    await q.goto(BASE + '/bible/Ps/23', { waitUntil: 'domcontentloaded' })
+    await q.locator('#v-Ps-23-1').waitFor({ timeout: 15000 })
+    check('a downloaded chapter opens with no connection', /the lord is my shepherd/i.test(await q.locator('#v-Ps-23-1').innerText()))
+    await q.getByTestId('offline-banner').waitFor()
+    check('the app clearly says it is offline', /You're offline/.test(await q.getByTestId('offline-banner').innerText()))
+    await q.evaluate(() => { localStorage.setItem('abs-settings', JSON.stringify({ ...JSON.parse(localStorage.getItem('abs-settings') || '{}'), translation: 'BSB' })) })
+    await q.goto(BASE + '/bible/Rom/8/28', { waitUntil: 'domcontentloaded' })
+    await q.locator('#v-Rom-8-28', { hasText: 'for the good of those who love Him' }).waitFor({ timeout: 15000 })
+    check('the downloaded translation (BSB) reads offline, with the reading setting kept', true)
+    await q.goto(BASE + '/sermons', { waitUntil: 'domcontentloaded' })
+    await q.locator('h1', { hasText: 'Sermons' }).waitFor({ timeout: 15000 })
+    check('notes, studies, and sermons pages work offline', true)
+    await c.setOffline(false)
+    await c.close()
+    // a chapter never read or downloaded: a clear message, not a broken page
+    const c2 = await browser.newContext({ serviceWorkers: 'allow' })
+    const q2 = await c2.newPage()
+    await q2.goto(BASE + '/bible/John/3', { waitUntil: 'networkidle' })
+    await q2.evaluate(async () => { await navigator.serviceWorker.ready })
+    await q2.reload({ waitUntil: 'networkidle' })
+    await c2.setOffline(true)
+    await q2.goto(BASE + '/bible/Obad/1', { waitUntil: 'domcontentloaded' })
+    await q2.locator('text=/Obadiah 1 is not saved on this device yet/').waitFor({ timeout: 15000 })
+    check('a chapter not saved offline explains how to get it', true)
+    await q2.goto(BASE + '/bible/John/3', { waitUntil: 'domcontentloaded' })
+    await q2.locator('#v-John-3-16').waitFor({ timeout: 15000 })
+    check('a chapter read earlier opens offline without downloading anything', true)
+    await c2.close()
+  }
+
   check('no uncaught page errors', errors.length === 0, errors.join(' | '))
+  check('nothing was blocked by the security policy anywhere in this run', cspViolations.length === 0, cspViolations.slice(0, 3).join(' | '))
   await browser.close()
   console.log(`\n${passed} passed, ${failures.length} failed`)
   process.exit(failures.length ? 1 : 0)

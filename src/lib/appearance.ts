@@ -1,31 +1,35 @@
 /**
  * Appearance options: fonts, color themes, page tones, and line spacing.
- * Fonts load from Google Fonts only when chosen, so unused fonts cost nothing.
+ * Fonts are self-hosted and load only when chosen, so unused fonts cost nothing.
  */
 
 export interface FontOption {
   id: string
   label: string
   stack: string
-  google?: string // Google Fonts family spec, loaded on demand
+  /** Loads a font that is not part of the default set (self-hosted, fetched the first time it is chosen). */
+  load?: () => Promise<unknown>
   note?: string
 }
 
+const atkinson = () =>
+  Promise.all([import('@fontsource/atkinson-hyperlegible/400.css'), import('@fontsource/atkinson-hyperlegible/700.css'), import('@fontsource/atkinson-hyperlegible/400-italic.css')])
+
 export const SCRIPTURE_FONTS: FontOption[] = [
-  { id: 'literata', label: 'Literata', stack: "'Literata', Georgia, serif", google: 'Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400', note: 'Default. A book serif made for long reading.' },
+  { id: 'literata', label: 'Literata', stack: "'Literata Variable', 'Literata', Georgia, serif", note: 'Default. A book serif made for long reading.' },
   { id: 'georgia', label: 'Georgia', stack: "Georgia, 'Times New Roman', serif", note: 'Classic, already on most devices.' },
-  { id: 'garamond', label: 'EB Garamond', stack: "'EB Garamond', Garamond, Georgia, serif", google: 'EB+Garamond:ital,wght@0,400;0,600;1,400', note: 'Traditional Bible-printing feel.' },
-  { id: 'merriweather', label: 'Merriweather', stack: "'Merriweather', Georgia, serif", google: 'Merriweather:ital,wght@0,400;0,700;1,400', note: 'Sturdy and clear on screens.' },
-  { id: 'sourceserif', label: 'Source Serif', stack: "'Source Serif 4', Georgia, serif", google: 'Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400' },
-  { id: 'inter', label: 'Inter (sans-serif)', stack: "'Inter', system-ui, sans-serif", google: 'Inter:ital,wght@0,400;0,600;1,400', note: 'Clean and modern, close to the sermon manuscript font.' },
-  { id: 'atkinson', label: 'Atkinson Hyperlegible', stack: "'Atkinson Hyperlegible', system-ui, sans-serif", google: 'Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400', note: 'Designed for readers with low vision.' },
+  { id: 'garamond', label: 'EB Garamond', stack: "'EB Garamond Variable', 'EB Garamond', Garamond, Georgia, serif", load: () => Promise.all([import('@fontsource-variable/eb-garamond/wght.css'), import('@fontsource-variable/eb-garamond/wght-italic.css')]), note: 'Traditional Bible-printing feel.' },
+  { id: 'merriweather', label: 'Merriweather', stack: "'Merriweather', Georgia, serif", load: () => Promise.all([import('@fontsource/merriweather/400.css'), import('@fontsource/merriweather/700.css'), import('@fontsource/merriweather/400-italic.css')]), note: 'Sturdy and clear on screens.' },
+  { id: 'sourceserif', label: 'Source Serif', stack: "'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif", load: () => Promise.all([import('@fontsource-variable/source-serif-4/opsz.css'), import('@fontsource-variable/source-serif-4/opsz-italic.css')]) },
+  { id: 'inter', label: 'Inter (sans-serif)', stack: "'Inter Variable', 'Inter', system-ui, sans-serif", load: () => import('@fontsource-variable/inter/wght-italic.css'), note: 'Clean and modern, close to the sermon manuscript font.' },
+  { id: 'atkinson', label: 'Atkinson Hyperlegible', stack: "'Atkinson Hyperlegible', system-ui, sans-serif", load: atkinson, note: 'Designed for readers with low vision.' },
 ]
 
 export const UI_FONTS: FontOption[] = [
-  { id: 'inter', label: 'Inter', stack: "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif", google: 'Inter:ital,wght@0,400;0,500;0,600;0,700;1,400', note: 'Default.' },
+  { id: 'inter', label: 'Inter', stack: "'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif", load: () => import('@fontsource-variable/inter/wght-italic.css'), note: 'Default.' },
   { id: 'system', label: 'My device font', stack: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif", note: 'San Francisco on Apple devices, Segoe on Windows.' },
-  { id: 'atkinson', label: 'Atkinson Hyperlegible', stack: "'Atkinson Hyperlegible', system-ui, sans-serif", google: 'Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400' },
-  { id: 'sourcesans', label: 'Source Sans', stack: "'Source Sans 3', system-ui, sans-serif", google: 'Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400' },
+  { id: 'atkinson', label: 'Atkinson Hyperlegible', stack: "'Atkinson Hyperlegible', system-ui, sans-serif", load: atkinson },
+  { id: 'sourcesans', label: 'Source Sans', stack: "'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif", load: () => Promise.all([import('@fontsource-variable/source-sans-3/wght.css'), import('@fontsource-variable/source-sans-3/wght-italic.css')]) },
 ]
 
 export const ACCENTS: { id: string; label: string; light: string; dark: string }[] = [
@@ -49,18 +53,13 @@ export const LINE_SPACING: { id: string; label: string; value: number }[] = [
   { id: 'relaxed', label: 'Relaxed', value: 2.05 },
 ]
 
-const loaded = new Set<string>(['Literata', 'Inter'])
+const loaded = new Set<string>()
 
-/** Adds a Google Fonts stylesheet for a font the first time it is chosen. */
+/** Loads a font's files the first time it is chosen. The default fonts are always loaded. */
 export function ensureFont(f: FontOption | undefined) {
-  if (!f?.google) return
-  const family = f.google.split(':')[0]
-  if (loaded.has(family.replace(/\+/g, ' '))) return
-  loaded.add(family.replace(/\+/g, ' '))
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href = `https://fonts.googleapis.com/css2?family=${f.google}&display=swap`
-  document.head.appendChild(link)
+  if (!f?.load || loaded.has(f.id)) return
+  loaded.add(f.id)
+  f.load().catch(() => loaded.delete(f.id))
 }
 
 export interface AppearanceSettings {

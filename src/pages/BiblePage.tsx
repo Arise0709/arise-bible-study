@@ -5,7 +5,9 @@ import { X } from 'lucide-react'
 import { Reader } from '../components/Reader'
 import { ToolsPane } from '../components/ToolsPane'
 import { useMediaQuery } from '../components/ui'
-import { BOOK_BY_ID, parseVerseSpec, resolveBook } from '../lib/refs'
+import { BOOK_BY_ID, parseCrossSpec, parseVerseSpec, resolveBook } from '../lib/refs'
+import { loadBookIndex } from '../lib/data'
+import { useAsync } from '../components/ui'
 import { useStudy } from '../lib/state'
 import { recordSession } from '../db/db'
 
@@ -14,10 +16,20 @@ export function BiblePage() {
   const nav = useNavigate()
   const book = resolveBook(params.book ?? '') ?? 'John'
   const chapter = Math.max(1, parseInt(params.chapter ?? '1', 10) || 1)
-  // "16", "28-39", or "16,18": every verse listed is highlighted
-  const verses = parseVerseSpec(params.verse)
+  // "16", "28-39", or "16,18": every verse listed is highlighted.
+  // "1-2:3" runs into a later chapter: verses to the end of this chapter, then a link onward.
+  const { data: index } = useAsync(loadBookIndex, [])
+  const cross = parseCrossSpec(params.verse)
+  const lastVerse = index?.find((b) => b.id === book)?.chapters[chapter - 1]
+  const verses = cross
+    ? Array.from({ length: Math.max(1, (lastVerse ?? cross.from) - cross.from + 1) }, (_, i) => cross.from + i)
+    : parseVerseSpec(params.verse)
   const verse = verses[0]
   const spec = params.verse && verses.length ? params.verse : undefined
+  const continues =
+    cross && cross.toChapter > chapter
+      ? { chapter: chapter + 1, spec: cross.toChapter === chapter + 1 ? `1-${cross.toVerse}` : `1-${cross.toChapter}:${cross.toVerse}`, toChapter: cross.toChapter, toVerse: cross.toVerse }
+      : undefined
   const wide = useMediaQuery('(min-width: 901px)')
   const { toolsOpen, setToolsOpen } = useStudy()
 
@@ -28,7 +40,7 @@ export function BiblePage() {
   }, [book, chapter, spec, params.book, nav])
 
   const onNavigate = (b: string, c: number, v?: number) => nav(`/bible/${b}/${c}${v ? '/' + v : ''}`)
-  const reader = <Reader book={book} chapter={chapter} target={verse} targets={verses} onNavigate={onNavigate} />
+  const reader = <Reader book={book} chapter={chapter} target={verse} targets={verses} continues={continues} onNavigate={onNavigate} />
 
   if (wide) {
     return (

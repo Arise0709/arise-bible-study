@@ -109,6 +109,13 @@ npm run e2e -- http://127.0.0.1:4173
 
 The end-to-end script (Playwright) walks the full acceptance workflow: navigation and search, word mappings, dictionary and thesaurus, study persistence after reload, personal dictionary, sermon editing and reordering, exports (checks the Markdown and Word contents and the PDF header), missing-data handling, mobile layout, and the AI safety checks with a deliberately bad mocked AI answer.
 
+## Offline reading and security
+
+- **Offline:** a service worker (`sw/sw.js`, built into `dist/sw.js` with this version's file list) keeps the app and recently read chapters on the device. In **Settings → Offline reading**, whole Bibles can be downloaded (the KJV is always included). When a new version is deployed, open pages show "A new version is ready" and switch over only when reloaded, so a device never mixes versions. Notes, studies, sermons, and backups are unaffected (they live in the browser database).
+- **Security headers:** set in `vercel.json` (Content Security Policy, no framing, no MIME sniffing, strict referrer, locked-down permissions, HSTS). `vite preview` sends the same headers, and the browser tests fail if anything is blocked.
+- **Fonts** are self-hosted from open-source (OFL) `@fontsource` packages; the app makes no requests to other sites.
+- **Two tabs:** studies and sermons are only saved if no other tab has saved a newer version; otherwise the editor asks which version to keep and saves the other as a separate copy.
+
 ## Rebuilding the data
 
 The generated data in `public/data` is committed so deploys are reproducible. To rebuild it from the pinned sources:
@@ -122,6 +129,8 @@ npm run data:build
 ```
 
 Requires Python 3.10+ and Node.js.
+
+The KJV is also split into one file per chapter (`public/data/kjv/{Book}/{chapter}.json`, from `scripts/build_chapters.mjs`) so the reader downloads only the chapter it shows. Rebuild them with `npm run data:chapters`.
 
 The search files in `public/data/search` are built from the Bible text by `scripts/build_search.mjs` (part of `data:build`). After changing any Bible text, rebuild them alone with:
 

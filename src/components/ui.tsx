@@ -195,9 +195,9 @@ export function timeAgo(t: number) {
 /** Shows the autosave state; offers Retry when a save failed. */
 export function SaveIndicator({ autosave }: { autosave: { status: import('../lib/autosave').SaveStatus; retry: () => Promise<void> } }) {
   const s = autosave.status
-  const text = s === 'pending' ? 'Unsaved changes…' : s === 'saving' ? 'Saving…' : s === 'error' ? 'Not saved' : 'All changes saved'
+  const text = s === 'pending' ? 'Unsaved changes…' : s === 'saving' ? 'Saving…' : s === 'error' ? 'Not saved' : s === 'conflict' ? 'Not saved: changed in another tab' : 'All changes saved'
   return (
-    <span className="save-state" role="status" aria-live="polite" data-status={s} style={s === 'error' ? { color: 'var(--danger)', fontWeight: 600 } : undefined}>
+    <span className="save-state" role="status" aria-live="polite" data-status={s} style={s === 'error' || s === 'conflict' ? { color: 'var(--danger)', fontWeight: 600 } : undefined}>
       {text}
       {s === 'error' && (
         <button className="btn sm" style={{ marginLeft: 6 }} onClick={() => void autosave.retry()}>

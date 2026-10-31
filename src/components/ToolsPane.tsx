@@ -17,6 +17,7 @@ export function ToolsPane() {
   if (settings.aiEnabled) tabs.push({ id: 'ai', label: <><Sparkles size={15} aria-hidden /> AI</> })
   return (
     <div className="panel" aria-label="Study tools">
+      <h2 className="sr-only">Study tools</h2>
       <Tabs label="Study tools" tabs={tabs} value={tool} onChange={setTool} />
       <div className="panel-body" role="tabpanel">
         {tool === 'word' && <WordPanel />}

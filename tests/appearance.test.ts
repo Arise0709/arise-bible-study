@@ -22,6 +22,29 @@ describe('color themes are readable (WCAG AA, 4.5:1 for text)', () => {
   }
 })
 
+describe('selected words stay readable (WCAG AA) with every accent and page color', () => {
+  // the selection color is color-mix(in srgb, accent 28%, page surface)
+  const mix = (a: string, b: string, p: number) =>
+    '#' + [0, 2, 4].map((i) => Math.round(parseInt(a.slice(1 + i, 3 + i), 16) * p + parseInt(b.slice(1 + i, 3 + i), 16) * (1 - p)).toString(16).padStart(2, '0')).join('')
+  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.css'), 'utf8')
+  const redSelected = [...css.matchAll(/--red-letter-selected: (#[0-9a-f]{6})/gi)].map((m) => m[1].toLowerCase())
+  it('a stronger red is defined for selected red-letter words, light and dark', () => {
+    expect(new Set(redSelected)).toEqual(new Set(['#7a1d16', '#ffcdc7']))
+  })
+  for (const a of ACCENTS) {
+    it(`${a.label}: plain and red-letter words on the selection color`, () => {
+      for (const [surface, text] of [['#ffffff', '#1f2328'], ['#fbf6ea', '#3b2f1e']]) {
+        const sel = mix(a.light, surface, 0.28)
+        expect(contrast(text, sel), `${a.id} light text`).toBeGreaterThanOrEqual(4.5)
+        expect(contrast('#7a1d16', sel), `${a.id} light red`).toBeGreaterThanOrEqual(4.5)
+      }
+      const selDark = mix(a.dark, '#1d2126', 0.28)
+      expect(contrast('#e8e6e1', selDark), `${a.id} dark text`).toBeGreaterThanOrEqual(4.5)
+      expect(contrast('#ffcdc7', selDark), `${a.id} dark red`).toBeGreaterThanOrEqual(4.5)
+    })
+  }
+})
+
 describe('translations', () => {
   const DATA = path.join(__dirname, '..', 'public', 'data')
   const idx = JSON.parse(fs.readFileSync(path.join(DATA, 'translations', 'index.json'), 'utf8')) as { id: string; license: string; verses: number }[]

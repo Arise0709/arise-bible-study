@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Group, Panel, Separator } from 'react-resizable-panels'
@@ -14,7 +14,8 @@ import { StudySinkCtx, quoteTr, useStudy, type StudySink } from '../lib/state'
 import { WORKSHEET_SECTIONS, db, emptyWorksheet, recordSession, uid, type Block, type Study, type WorksheetKey } from '../db/db'
 import { pdfExport, studyToDoc, toMarkdown, wordExport } from '../export/doc'
 import { createSermonFromStudy } from './sermonTemplates'
-import { useAutosave } from '../lib/autosave'
+import { guardedPut, useAutosave } from '../lib/autosave'
+import { ConflictBanner, useWatchRecord } from '../components/Conflict'
 
 export function StudyStart() {
   const nav = useNavigate()
@@ -95,7 +96,11 @@ function Workspace({ initial }: { initial: Study }) {
   const wide = useMediaQuery('(min-width: 901px)')
   const [mobileTab, setMobileTab] = useState<'scripture' | 'tools' | 'notes'>('scripture')
   const { selection, toolsOpen } = useStudy()
-  const autosave = useAutosave(study, (v: Study) => db.studies.put({ ...v, updatedAt: Date.now() }), `studies:${initial.id}`)
+  // `base` is the stored version this tab is editing; saves never overwrite a newer one from another tab
+  const base = useRef(initial.updatedAt ?? 0)
+  const autosave = useAutosave(study, (v: Study) => guardedPut('studies', v, base), `studies:${initial.id}`, 600, base)
+  useWatchRecord<Study>('studies', initial.id, base, autosave, setStudy, 'study')
+  const nav = useNavigate()
 
   useEffect(() => {
     recordSession('study', `/study/${study.id}`, study.title)
@@ -128,6 +133,11 @@ function Workspace({ initial }: { initial: Study }) {
 
   return (
     <StudySinkCtx.Provider value={sink}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: autosave.conflict ? '0 12px' : 0 }}>
+        <ConflictBanner table="studies" noun="study" value={study} base={base} autosave={autosave} onUseTheirs={setStudy} onClose={() => { autosave.discard(); nav('/studies') }} />
+      </div>
+      <div style={{ flex: 1, minHeight: 0 }}>
       {wide ? (
         <Group orientation="horizontal" id="workspace-layout" style={{ height: '100%' }}>
           <Panel id="ws-scripture" defaultSize="36%" minSize="22%">
@@ -158,6 +168,8 @@ function Workspace({ initial }: { initial: Study }) {
           </div>
         </div>
       )}
+      </div>
+      </div>
     </StudySinkCtx.Provider>
   )
 }
@@ -200,7 +212,7 @@ function Worksheet({ study, update, autosave, onGoToPassage }: { study: Study; u
   return (
     <div className="panel" aria-label="Study notes">
       <div className="reader-head">
-        <strong>Guided breakdown</strong>
+        <h2 style={{ fontSize: 'inherit', margin: 0 }}>Guided breakdown</h2>
         <SaveIndicator autosave={autosave} />
         <span className="spacer" />
         <button className="btn sm" onClick={() => exportAs('md')} title="Export Markdown"><Download size={14} /> .md</button>

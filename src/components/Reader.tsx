@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Bookmark, BookOpen, ChevronLeft, ChevronRight, Copy, Highlighter, Link2, NotebookPen, Plus, StickyNote, X } from 'lucide-react'
-import { FLAG_ADDED, FLAG_DIVINE, FLAG_RED, getPassage, passageToText, loadBook, loadBookIndex, loadTranslationBook, loadTranslationIndex, parseWord, segText, verseText, type Book, type Segment, type Verse } from '../lib/data'
+import { FLAG_ADDED, FLAG_DIVINE, FLAG_RED, getPassage, passageToText, loadChapter, loadBookIndex, loadTranslationBook, loadTranslationIndex, parseWord, segText, verseText, type Book, type Segment, type Verse } from '../lib/data'
 import { BOOKS, BOOK_BY_ID, BOOK_INDEX, formatRef, parseOsis, toOsis, type Ref } from '../lib/refs'
 import { quoteTr, useStudy, useStudySink } from '../lib/state'
 import { db, emptyWorksheet, uid, type Highlight, type VerseNote } from '../db/db'
@@ -21,11 +21,20 @@ interface Props {
   inPanel?: boolean
   /** Every requested verse ("16,18" or "28-39"), highlighted together. */
   targets?: number[]
+  /** The requested passage runs on into a later chapter (e.g. Gen 1:1-2:3). */
+  continues?: { chapter: number; spec: string; toChapter: number; toVerse: number }
 }
 
-export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: Props) {
+export function Reader({ book, chapter, target, onNavigate, inPanel, targets, continues }: Props) {
   const { data: index } = useAsync(loadBookIndex, [])
-  const { data: bookData, error, loading, reload } = useAsync(() => loadBook(book), [book])
+  // The chapter's own small file, not the whole book. Chapter numbers past the end are caught below.
+  const bookEntry = index?.find((b) => b.id === book)
+  const chapterExists = !index || !bookEntry || chapter <= bookEntry.chapters.length
+  const { data: chData, error, loading, reload } = useAsync(
+    () => (chapterExists ? loadChapter(book, chapter) : Promise.resolve(undefined)),
+    [book, chapter, chapterExists],
+  )
+  const bookName = bookEntry?.name ?? BOOK_BY_ID[book]?.name ?? book
   const { settings, updateSettings, selection, select, setFocusVerse, setTool, setToolsOpen } = useStudy()
   const sink = useStudySink()
   const nav = useNavigate()
@@ -33,7 +42,7 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: 
   const [noteFor, setNoteFor] = useState<Ref | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const ch = bookData?.chapters[chapter - 1]
+  const ch = chData?.c === chapter ? chData : undefined
   const { data: tIndex } = useAsync(() => loadTranslationIndex().catch(() => []), [])
   const primary = settings.translation !== 'KJV' && tIndex?.some((t) => t.id === settings.translation) ? settings.translation : 'KJV'
   const compare = settings.compareWith && settings.compareWith !== primary ? settings.compareWith : ''
@@ -44,7 +53,17 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: 
   )
   const altVerse = (bk: (string | null)[][] | null | undefined, v: number) => bk?.[chapter - 1]?.[v - 1] ?? null
   const extraVerses = primaryBook ? (primaryBook[chapter - 1] ?? []).map((t, i) => ({ v: i + 1, t })).filter((x) => x.t && !ch?.verses.some((kv) => kv.v === x.v)) : []
-  const chapterTotal = index?.find((b) => b.id === book)?.chapters.length ?? bookData?.chapters.length ?? 0
+  const chapterTotal = bookEntry?.chapters.length ?? 0
+
+  // get the next and previous chapters ready so moving through a book is instant
+  useEffect(() => {
+    if (!ch || !chapterTotal) return
+    const t = setTimeout(() => {
+      if (chapter < chapterTotal) loadChapter(book, chapter + 1).catch(() => {})
+      if (chapter > 1) loadChapter(book, chapter - 1).catch(() => {})
+    }, 0)
+    return () => clearTimeout(t)
+  }, [ch, book, chapter, chapterTotal])
 
   const highlights = useLiveQuery(() => db.highlights.where('book').equals(book).toArray(), [book]) ?? []
   const bookmarks = useLiveQuery(() => db.bookmarks.where('book').equals(book).toArray(), [book]) ?? []
@@ -60,14 +79,19 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: 
   const targetKey = targetList.join(',')
   const rangeSet = useMemo(() => new Set(targetKey.includes(',') ? targetKey.split(',').map(Number) : []), [targetKey])
   const missingTargets = ch ? targetList.filter((v) => !ch.verses.some((x) => x.v === v) && !extraVerses.some((x) => x.v === v)) : []
+  // every verse a note covers (a note on John 3:16-18 shows on 16, 17, and 18), keyed by verse number
   const notesByVerse = useMemo(() => {
     const m = new Map<number, VerseNote[]>()
+    const first = numKey(book, chapter, 0)
+    const last = numKey(book, chapter, 999)
     for (const n of notes) {
-      const v = n.startKey
-      m.set(v, [...(m.get(v) ?? []), n])
+      if (n.endKey < first || n.startKey > last) continue
+      const from = Math.max(n.startKey, first + 1) - first
+      const to = Math.min(n.endKey, last) - first
+      for (let v = from; v <= to; v++) m.set(v, [...(m.get(v) ?? []), n])
     }
     return m
-  }, [notes])
+  }, [notes, book, chapter])
 
   useEffect(() => setSel(null), [book, chapter])
 
@@ -83,6 +107,40 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: 
       }
     } else scrollRef.current?.scrollTo({ top: 0 })
   }, [ch, book, chapter, targetKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keyboard: the chapter text is a single Tab stop. Inside it, Up/Down move between verses, Left/Right move
+  // word by word, Home/End jump to the first/last verse, Enter or Space selects. Whatever was last focused
+  // (by keyboard or mouse) is where Tab returns.
+  const roveStart = targetList[0] ?? ch?.verses[0]?.v
+  const onRoveFocus = (e: React.FocusEvent<HTMLElement>) => {
+    const t = e.target as HTMLElement
+    if (!t.dataset.rove) return
+    for (const el of e.currentTarget.querySelectorAll<HTMLElement>('[data-rove][tabindex="0"]')) if (el !== t) el.tabIndex = -1
+    t.tabIndex = 0
+  }
+  const onRoveKey = (e: React.KeyboardEvent<HTMLElement>) => {
+    const t = e.target as HTMLElement
+    if (!t.dataset.rove || e.altKey || e.ctrlKey || e.metaKey) return
+    const all = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-rove]')]
+    const verses = all.filter((el) => el.dataset.rove === 'v')
+    const i = all.indexOf(t)
+    const verseOf = (el: HTMLElement) => el.closest('.verse')?.querySelector<HTMLElement>('[data-rove="v"]') ?? null
+    let next: HTMLElement | null | undefined
+    if (e.key === 'ArrowRight') next = all[i + 1]
+    else if (e.key === 'ArrowLeft') next = all[i - 1]
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const cur = verseOf(t)
+      const vi = cur ? verses.indexOf(cur) : -1
+      next = e.key === 'ArrowDown' ? (vi < 0 ? verses[0] : verses[vi + 1]) : vi < 0 ? verses[0] : t !== cur ? cur : verses[vi - 1]
+    } else if (e.key === 'Home') next = verses[0]
+    else if (e.key === 'End') next = verses[verses.length - 1]
+    else return
+    e.preventDefault()
+    if (next) {
+      next.focus()
+      next.scrollIntoView({ block: 'nearest' })
+    }
+  }
 
   const go = (delta: number) => {
     let bi = BOOK_INDEX[book]
@@ -264,21 +322,36 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: 
         </button>
       </div>
 
-      {loading && !bookData && <Loading label={`Loading ${BOOK_BY_ID[book]?.name ?? book}`} />}
+      {loading && !ch && <Loading label={`Loading ${bookName} ${chapter}`} />}
       {error && (
         <div style={{ padding: 16 }}>
-          <ErrorBox error={error} onRetry={reload} />
+          <ErrorBox
+            error={
+              typeof navigator !== 'undefined' && !navigator.onLine
+                ? new Error(`${bookName} ${chapter} is not saved on this device yet. Connect to the internet, or download Bibles for offline reading in Settings.`)
+                : error
+            }
+            onRetry={reload}
+          />
         </div>
       )}
-      {bookData && !ch && (
+      {!chapterExists && (
         <div style={{ padding: 16 }}>
-          <ErrorBox error={new Error(`${BOOK_BY_ID[book]?.name} has ${bookData.chapters.length} chapters. Chapter ${chapter} does not exist.`)} />
+          <ErrorBox error={new Error(`${bookName} has ${chapterTotal} chapters. Chapter ${chapter} does not exist.`)} />
         </div>
       )}
-      {ch && bookData && (
-        <article className={`reader ${settings.redLetters ? 'red-on' : ''} ${settings.showTagged ? 'show-tags' : ''}`} aria-label={`${bookData.name} chapter ${chapter}, ${primary === 'KJV' ? 'King James Version' : tIndex?.find((t) => t.id === primary)?.name ?? primary}`}>
+      {ch && (
+        <article
+          className={`reader ${settings.redLetters ? 'red-on' : ''} ${settings.showTagged ? 'show-tags' : ''}`}
+          aria-label={`${bookName} chapter ${chapter}, ${primary === 'KJV' ? 'King James Version' : tIndex?.find((t) => t.id === primary)?.name ?? primary}`}
+          onFocus={onRoveFocus}
+          onKeyDown={onRoveKey}
+        >
+          <p className="sr-only" id={`rove-help-${inPanel ? 'p' : 'm'}`}>
+            Use the up and down arrow keys to move between verses, and left and right to move word by word. Press Enter to select.
+          </p>
           <h1 className="chapter-title">
-            {bookData.name.toUpperCase()} {chapter}
+            {bookName.toUpperCase()} {chapter}
             {primary !== 'KJV' && <span className="muted" style={{ fontSize: '0.75em' }}> · {primary}</span>}
           </h1>
           {primary !== 'KJV' && (
@@ -289,7 +362,7 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: 
           {(primaryErr || compareErr) && <ErrorBox error={(primaryErr ?? compareErr)!} />}
           {missingTargets.length > 0 && (
             <div className="notice warn" role="status" data-testid="missing-verse" style={{ fontFamily: 'var(--ui-font)', fontSize: 'calc(var(--ui-size) * 0.9)', marginBottom: 12 }}>
-              {bookData.name} {chapter} has {ch.verses.length} verses, so {missingTargets.length === 1 ? `verse ${missingTargets[0]} does` : `verses ${missingTargets.join(', ')} do`} not exist. Showing the whole chapter.
+              {bookName} {chapter} has {ch.verses.length} verses, so {missingTargets.length === 1 ? `verse ${missingTargets[0]} does` : `verses ${missingTargets.join(', ')} do`} not exist. Showing the whole chapter.
             </div>
           )}
           {ch.title && primary === 'KJV' && (
@@ -301,12 +374,12 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: 
             const key = `${book}.${chapter}.${v.v}`
             const hl = hlMap.get(key)
             const isSel = sel && v.v >= sel.from && v.v <= sel.to
-            const vnotes = notesByVerse.get(numKey(book, chapter, v.v)) ?? []
+            const vnotes = notesByVerse.get(v.v) ?? []
             return (
               <Fragment key={v.v}>
                 {v.h && <div className="acrostic">{v.h}</div>}
                 <span id={`v-${book}-${chapter}-${v.v}`} className={`verse vline ${v.p ? 'paragraph' : ''} ${hl ? 'hl-' + hl : ''} ${isSel ? 'selected' : ''} ${rangeSet.has(v.v) ? 'in-range' : ''}`}>
-                  <button className="vnum" onClick={(e) => onVerseNum(v.v, e.shiftKey)} aria-label={`Select verse ${v.v}`} aria-pressed={!!isSel}>
+                  <button className="vnum" data-rove="v" tabIndex={v.v === roveStart ? 0 : -1} onClick={(e) => onVerseNum(v.v, e.shiftKey)} aria-label={`Select verse ${v.v}`} aria-pressed={!!isSel} aria-describedby={v.v === roveStart ? `rove-help-${inPanel ? 'p' : 'm'}` : undefined}>
                     {v.v}
                   </button>
                   {primary === 'KJV' ? (
@@ -320,13 +393,15 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: 
                       {vnotes.length > 0 && (
                         <button
                           className="reflink"
+                          data-rove="n"
+                          tabIndex={-1}
                           style={{ fontSize: 'inherit', display: 'inline-flex' }}
                           onClick={() => {
                             setFocusVerse({ book, chapter, verse: v.v })
                             setTool('notes')
                             setToolsOpen(true)
                           }}
-                          aria-label="Open notes for this verse"
+                          aria-label={`Open ${vnotes.length === 1 ? 'the note' : `${vnotes.length} notes`} for verse ${v.v}`}
                         >
                           <NotebookPen size={11} aria-hidden />
                         </button>
@@ -349,6 +424,13 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets }: 
               </Fragment>
             )
           })}
+          {continues && (
+            <p className="no-print" style={{ fontFamily: 'var(--ui-font)', fontSize: 'var(--ui-size)', marginTop: 16 }} data-testid="passage-continues">
+              <Link to={`/bible/${book}/${continues.chapter}/${continues.spec}`}>
+                The passage continues in {formatRef({ book, chapter: continues.chapter, verse: 1, endChapter: continues.toChapter, endVerse: continues.toVerse })} →
+              </Link>
+            </p>
+          )}
           {extraVerses.map((x) => (
             <span key={`x${x.v}`} className="verse vline">
               <span className="vnum" style={{ cursor: 'default' }}>{x.v}</span> {x.t}
@@ -459,7 +541,8 @@ function Segments({
           <span
             key={i}
             role="button"
-            tabIndex={0}
+            tabIndex={-1}
+            data-rove="w"
             aria-label={label}
             className={`w ${cls} ${isSel ? 'sel' : ''}`}
             onClick={activate}

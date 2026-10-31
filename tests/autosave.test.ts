@@ -47,3 +47,51 @@ describe('autosave recovery (safety copies)', () => {
     expect(localStorage.getItem('abs-settings')).toBe('{"theme":"dark"}')
   })
 })
+
+const { guardedPut, ConflictError } = await import('../src/lib/autosave')
+
+describe('edits in two tabs never overwrite each other (M1)', () => {
+  beforeEach(async () => {
+    store.clear()
+    await db.studies.clear()
+  })
+  it('saves normally when nothing else changed the record', async () => {
+    await db.studies.put(study('s1', 'Start', 1000))
+    const base = { current: 1000 }
+    await guardedPut('studies', study('s1', 'Edited here', 1000), base)
+    expect((await db.studies.get('s1'))?.title).toBe('Edited here')
+    expect(base.current).toBeGreaterThan(1000)
+    await guardedPut('studies', study('s1', 'Edited again', 1000), base)
+    expect((await db.studies.get('s1'))?.title).toBe('Edited again')
+  })
+  it('refuses to overwrite a newer version from another tab, and writes nothing', async () => {
+    await db.studies.put(study('s1', 'Start', 1000))
+    const tabA = { current: 1000 }
+    const tabB = { current: 1000 }
+    await guardedPut('studies', study('s1', 'Tab B wrote this', 1000), tabB)
+    const err = await guardedPut('studies', study('s1', 'Tab A wrote this', 1000), tabA).catch((e) => e)
+    expect(err).toBeInstanceOf(ConflictError)
+    expect(err.theirs.title).toBe('Tab B wrote this')
+    expect((await db.studies.get('s1'))?.title).toBe('Tab B wrote this')
+  })
+  it('treats a record deleted in another tab as a conflict, not a silent re-create', async () => {
+    const err = await guardedPut('studies', study('gone', 'x', 1), { current: 1 }).catch((e) => e)
+    expect(err).toBeInstanceOf(ConflictError)
+    expect(err.theirs).toBeNull()
+    expect(await db.studies.get('gone')).toBeUndefined()
+  })
+  it('a leftover safety copy never overwrites a change made in another tab; it becomes a separate copy', async () => {
+    await db.studies.put(study('s1', 'Other tab saved this later', 3000))
+    store.set('abs-pending:studies:s1', JSON.stringify({ at: 2500, base: 1000, value: study('s1', 'My edit', 1000) }))
+    expect(await recoverPendingEdits()).toBe(1)
+    expect((await db.studies.get('s1'))?.title).toBe('Other tab saved this later')
+    const all = await db.studies.toArray()
+    expect(all.map((s) => s.title).sort()).toEqual(['My edit (recovered copy)', 'Other tab saved this later'])
+  })
+  it('old safety copies (from before this change) still restore as before', async () => {
+    await db.studies.put(study('s1', 'Old', 1000))
+    store.set('abs-pending:studies:s1', JSON.stringify({ at: 2000, value: study('s1', 'Newer edit', 1000) }))
+    expect(await recoverPendingEdits()).toBe(1)
+    expect((await db.studies.get('s1'))?.title).toBe('Newer edit')
+  })
+})

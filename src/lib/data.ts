@@ -79,6 +79,17 @@ export function loadBook(id: string): Promise<Book> {
   return getJson<Book>(`kjv/${id}.json`, `the KJV text of ${name}`)
 }
 
+/**
+ * One KJV chapter (text, word tags, notes), from its own small file. If the whole book is already loaded
+ * (by a feature that needs it), the chapter comes from there instead, so nothing is downloaded twice.
+ */
+export function loadChapter(id: string, chapter: number): Promise<Chapter> {
+  const whole = cache.get(`kjv/${id}.json`) as Promise<Book> | undefined
+  if (whole) return whole.then((b) => b.chapters[chapter - 1] ?? Promise.reject(new DataError(`chapter ${chapter}`, 'It is not in this book.')))
+  const name = BOOKS.find((b) => b.id === id)?.name ?? id
+  return getJson<Chapter>(`kjv/${id}/${chapter}.json`, `the KJV text of ${name} ${chapter}`)
+}
+
 /** Text as printed: divine-name markup is rendered in capitals (LORD, GOD). */
 export function segText(s: Segment): string {
   return (s[1] ?? 0) & FLAG_DIVINE ? s[0].toUpperCase() : s[0]
@@ -118,9 +129,11 @@ export async function getPassage(ref: Ref, tr = 'KJV'): Promise<PassageVerse[]> 
       if (t) out.push({ ...k, text: t })
     }
   } else {
-    const book = await loadBook(ref.book)
-    for (const k of expandRef(ref)) {
-      const v = book.chapters[k.chapter - 1]?.verses.find((x) => x.v === k.verse)
+    const keys = expandRef(ref)
+    const chapters = new Map<number, Chapter | undefined>()
+    await Promise.all([...new Set(keys.map((k) => k.chapter))].map(async (c) => chapters.set(c, await loadChapter(ref.book, c).catch(() => undefined))))
+    for (const k of keys) {
+      const v = chapters.get(k.chapter)?.verses.find((x) => x.v === k.verse)
       if (v) out.push({ ...k, text: verseText(v) })
     }
   }

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Noto+Serif+Hebrew:wght@400;600&display=swap');
+/* Fonts are self-hosted (see src/main.tsx and src/lib/appearance.ts); nothing loads from other sites. */
 
 :root {
   --bg: #f7f5f0;
@@ -19,6 +19,8 @@
   --ok: #2c6e3f;
   --ok-soft: #e3f2e7;
   --red-letter: #a3322a;
+  --red-letter-selected: #7a1d16; /* red words on the selection color, 4.5:1 or better */
+  --cue-gold: #7f6410; /* template gold on screen, readable (4.5:1+) */
   --scripture-bg: #fffdf8;
   --source-bg: #f2f6f9;
   --source-border: #9cb8c6;
@@ -35,8 +37,8 @@
   --word-selected: #b9dbe8;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.05);
   --radius: 10px;
-  --ui-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --scripture-font: 'Literata', Georgia, 'Times New Roman', serif;
+  --ui-font: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --scripture-font: 'Literata Variable', 'Literata', Georgia, 'Times New Roman', serif;
   --hebrew-font: 'Noto Serif Hebrew', 'SBL Hebrew', 'Times New Roman', serif;
   --reader-size: 19px;
   --ui-size: 15px;
@@ -63,6 +65,8 @@
     --ok: #8ed39f;
     --ok-soft: #1f3326;
     --red-letter: #f0948b;
+    --red-letter-selected: #ffcdc7; /* red words on the selection color, 4.5:1 or better */
+    --cue-gold: #d9b85a; /* template gold on screen, readable (4.5:1+) */
     --scripture-bg: #1a1e22;
     --source-bg: #1c262d;
     --source-border: #3f6577;
@@ -100,6 +104,8 @@
   --ok: #8ed39f;
   --ok-soft: #1f3326;
   --red-letter: #f0948b;
+  --red-letter-selected: #ffcdc7; /* red words on the selection color, 4.5:1 or better */
+  --cue-gold: #d9b85a; /* template gold on screen, readable (4.5:1+) */
   --scripture-bg: #1a1e22;
   --source-bg: #1c262d;
   --source-border: #3f6577;
@@ -673,12 +679,23 @@ kbd {
   font-size: 0.62em;
   font-weight: 600;
   color: var(--accent);
-  vertical-align: super;
-  margin-right: 3px;
   cursor: pointer;
   border: none;
   background: none;
+  /* at least 24 x 24 px to tap (WCAG 2.2), drawn as a small raised number */
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0 2px;
+  margin-right: 1px;
+  line-height: 1.2;
+  vertical-align: text-top;
+  border-radius: 4px;
+}
+.vnum:hover {
+  background: var(--word-hover);
 }
 .vmarks {
   display: inline-flex;
@@ -725,6 +742,10 @@ kbd {
 }
 .red-on .red {
   color: var(--red-letter);
+}
+.red-on .w.sel.red,
+.red-on .red .w.sel {
+  color: var(--red-letter-selected);
 }
 .divine {
   font-variant: small-caps;
@@ -1219,4 +1240,12 @@ a.iconbtn {
   height: 28px;
   border-radius: 50%;
   border: 1px solid var(--border);
+}
+
+/* a link that stands alone (not inside a sentence) gets a 24 px tall tap area (WCAG 2.2) */
+.tap-24 a,
+.tap-24 button {
+  display: inline-block;
+  min-height: 24px;
+  line-height: 24px;
 }

@@ -208,6 +208,7 @@ export function refPath(r: Ref): string {
   if (r.verse !== undefined) {
     v = '/' + r.verse
     if (r.endVerse !== undefined && r.endVerse > r.verse && (r.endChapter === undefined || r.endChapter === r.chapter)) v += '-' + r.endVerse
+    else if (r.endChapter !== undefined && r.endChapter > r.chapter && r.endVerse !== undefined) v += `-${r.endChapter}:${r.endVerse}` // "Gen 1:1-2:3" -> /bible/Gen/1/1-2:3
   }
   return `/bible/${r.book}/${r.chapter}${v}`
 }
@@ -219,6 +220,12 @@ export function refListPath(refs: Ref[]): string {
   if (!same) return refPath(a)
   const spec = refs.map((r) => (r.endVerse !== undefined && r.endVerse > r.verse! ? `${r.verse}-${r.endVerse}` : `${r.verse}`)).join(',')
   return `/bible/${a.book}/${a.chapter}/${spec}`
+}
+
+/** A range that runs into a later chapter: "1-2:3" (from verse 1 to chapter 2 verse 3). */
+export function parseCrossSpec(spec: string | undefined): { from: number; toChapter: number; toVerse: number } | undefined {
+  const m = /^\s*(\d+)\s*-\s*(\d+)\s*:\s*(\d+)\s*$/.exec(spec ?? '')
+  return m ? { from: +m[1], toChapter: +m[2], toVerse: +m[3] } : undefined
 }
 
 /** Read the verse part of a reader URL: "16", "28-39", "16,18,20-22". Returns verse numbers in order. */

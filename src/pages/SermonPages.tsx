@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Copy, Download, FileText, FolderPlus, GripVertical, MonitorPlay, Plus, Printer, Trash2 } from 'lucide-react'
@@ -11,7 +11,8 @@ import { quoteTr, useStudy } from '../lib/state'
 import { db, recordSession, uid, type Sermon, type SermonSection } from '../db/db'
 import { pdfExport, sermonToDoc, toMarkdown, wordExport } from '../export/doc'
 import { SECTION_TYPES, TEMPLATES, newSermon } from './sermonTemplates'
-import { useAutosave } from '../lib/autosave'
+import { guardedPut, useAutosave } from '../lib/autosave'
+import { ConflictBanner, useWatchRecord } from '../components/Conflict'
 
 /* ================= List ================= */
 
@@ -79,7 +80,7 @@ export function SermonsPage() {
         {shown.map((s) => (
           <li key={s.id}>
             <div className="row">
-              <Link to={`/sermons/${s.id}`} style={{ fontWeight: 600 }}>{s.title || 'Untitled'}</Link>
+              <Link to={`/sermons/${s.id}`} style={{ fontWeight: 600, display: 'inline-block', minHeight: 24, lineHeight: '24px' }}>{s.title || 'Untitled'}</Link>
               <span className={`badge ${s.status === 'ready' ? 'source' : ''}`}>{s.status === 'ready' ? 'Ready' : 'Draft'}</span>
               <span className="badge">{TEMPLATES[s.template]?.name ?? 'Custom'}</span>
               {s.folderId && <span className="badge">📁 {folders.find((f) => f.id === s.folderId)?.name}</span>}
@@ -87,7 +88,7 @@ export function SermonsPage() {
               <span className="muted small">edited {timeAgo(s.updatedAt)}</span>
             </div>
             <div className="muted small">
-              {s.passage && parseOsis(s.passage) && <ScriptureRef r={s.passage} />} {s.mainIdea && <>· {s.mainIdea.slice(0, 140)}</>}
+              {s.passage && parseOsis(s.passage) && <span className="tap-24"><ScriptureRef r={s.passage} /></span>} {s.mainIdea && <>· {s.mainIdea.slice(0, 140)}</>}
             </div>
             {s.tags.length > 0 && <div className="row small" style={{ marginTop: 4 }}>{s.tags.map((t) => <span key={t} className="badge">#{t}</span>)}</div>}
           </li>
@@ -168,7 +169,10 @@ function SermonEditor({ initial }: { initial: Sermon }) {
   const [drag, setDrag] = useState<number | null>(null)
   const [over, setOver] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const autosave = useAutosave(s, (v: Sermon) => db.sermons.put({ ...v, updatedAt: Date.now() }), `sermons:${initial.id}`)
+  // `base` is the stored version this tab is editing; saves never overwrite a newer one from another tab
+  const base = useRef(initial.updatedAt ?? 0)
+  const autosave = useAutosave(s, (v: Sermon) => guardedPut('sermons', v, base), `sermons:${initial.id}`, 600, base)
+  useWatchRecord<Sermon>('sermons', initial.id, base, autosave, setS, 'outline')
   const folders = useLiveQuery(() => db.folders.where('kind').equals('sermon').toArray(), []) ?? []
 
   useEffect(() => {
@@ -223,6 +227,7 @@ function SermonEditor({ initial }: { initial: Sermon }) {
 
   return (
     <div className="page stack" style={{ maxWidth: 980 }}>
+      <ConflictBanner table="sermons" noun="outline" value={s} base={base} autosave={autosave} onUseTheirs={setS} onClose={() => { autosave.discard(); nav('/sermons') }} />
       <div className="row no-print">
         <Link to="/sermons" className="small">← Sermons &amp; Lessons</Link>
         <SaveIndicator autosave={autosave} />
@@ -234,6 +239,7 @@ function SermonEditor({ initial }: { initial: Sermon }) {
         <button className="btn" onClick={() => exportSermon(s, 'pdf')}><FileText size={15} /> PDF</button>
       </div>
 
+      <h1 className="sr-only">Edit outline: {s.title || 'Untitled'}</h1>
       <label className="sr-only" htmlFor="stitle">Title</label>
       <input id="stitle" value={s.title} onChange={(e) => up({ title: e.target.value })} placeholder="Title" style={{ display: 'block', width: '100%', fontSize: '1.7rem', fontWeight: 700, border: '1px solid transparent', background: 'transparent', padding: '4px 0' }} />
 
@@ -500,7 +506,7 @@ function ManuscriptText({ text }: { text: string }) {
         if ((m = /^HARD TRUTH:\s*(.*)$/i.exec(line)))
           return (
             <p key={i}>
-              <strong style={{ color: '#B8972A' }}>HARD TRUTH:</strong> <em><LinkedText text={m[1]} /></em>
+              <strong style={{ color: 'var(--cue-gold)' }}>HARD TRUTH:</strong> <em><LinkedText text={m[1]} /></em>
             </p>
           )
         if ((m = /^PRAYER:\s*(.*)$/i.exec(line)))
@@ -512,7 +518,7 @@ function ManuscriptText({ text }: { text: string }) {
         if ((m = /^\[([^\]]{2,40})\]\s*(.*)$/.exec(line)))
           return (
             <p key={i} style={{ fontSize: '0.8em', marginLeft: '1em' }}>
-              <strong style={{ color: '#B8972A' }}>[{m[1].toUpperCase()}]</strong> <em><LinkedText text={m[2]} /></em>
+              <strong style={{ color: 'var(--cue-gold)' }}>[{m[1].toUpperCase()}]</strong> <em><LinkedText text={m[2]} /></em>
             </p>
           )
         if ((m = /^[-•*]\s+(.*)$/.exec(line)))

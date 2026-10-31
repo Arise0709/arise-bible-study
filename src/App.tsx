@@ -1,17 +1,26 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { BookOpen, BookA, Columns3, HelpCircle, Library, Mic, Search, Settings as SettingsIcon } from 'lucide-react'
 import { StudyProvider } from './lib/state'
 import { db } from './db/db'
 import { loadBookIndex } from './lib/data'
-import { Dialog, ToastHost } from './components/ui'
+import { Dialog, Loading, ToastHost } from './components/ui'
 import { BackupReminder } from './components/DataSafety'
+import { AppStatusBanners } from './components/Offline'
 import { autoRequestPersistence } from './lib/dataSafety'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { BiblePage } from './pages/BiblePage'
-import { StudyStart, WorkspacePage } from './pages/WorkspacePage'
-import { SermonEditorPage, SermonsPage, TeachingView } from './pages/SermonPages'
+
 import { DictionaryPage, KeyboardHelp, SavedStudiesPage, SearchPage, SettingsPage, SourcesPage } from './pages/OtherPages'
+
+// The study and sermon editors load when first opened, so the first chapter appears sooner.
+const workspace = () => import('./pages/WorkspacePage')
+const sermons = () => import('./pages/SermonPages')
+const StudyStart = lazy(() => workspace().then((m) => ({ default: m.StudyStart })))
+const WorkspacePage = lazy(() => workspace().then((m) => ({ default: m.WorkspacePage })))
+const SermonsPage = lazy(() => sermons().then((m) => ({ default: m.SermonsPage })))
+const SermonEditorPage = lazy(() => sermons().then((m) => ({ default: m.SermonEditorPage })))
+const TeachingView = lazy(() => sermons().then((m) => ({ default: m.TeachingView })))
 
 const NAV = [
   { to: '/bible', label: 'Bible', icon: BookOpen },
@@ -120,9 +129,11 @@ function Shell() {
           </NavLink>
         </header>
       )}
+      {!teaching && <AppStatusBanners />}
       {!teaching && <BackupReminder />}
       <main id="main" className="content">
         <ErrorBoundary key={loc.pathname}>
+        <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/bible" element={<BibleRedirect />} />
@@ -141,6 +152,7 @@ function Shell() {
           <Route path="/sources" element={<SourcesPage />} />
           <Route path="*" element={<div className="page"><h1>Page not found</h1><p><NavLink to="/bible">Open the Bible</NavLink></p></div>} />
         </Routes>
+        </Suspense>
         </ErrorBoundary>
       </main>
       {!teaching && (

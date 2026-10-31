@@ -73,7 +73,7 @@ describe('flexible reference formats (M8)', () => {
   })
   it('paths carry ranges and lists so every verse can be highlighted', () => {
     expect(refPath(parseRef('Romans 8:28-39')!)).toBe('/bible/Rom/8/28-39')
-    expect(refPath(parseRef('Gen 1:1-2:3')!)).toBe('/bible/Gen/1/1')
+    expect(refPath(parseRef('Gen 1:1-2:3')!)).toBe('/bible/Gen/1/1-2:3')
     expect(refListPath(parseRefList('John 3:16,18')!)).toBe('/bible/John/3/16,18')
     expect(refListPath(parseRefList('John 3:16; Rom 5:8')!)).toBe('/bible/John/3/16')
     expect(parseVerseSpec('16,18,20-22')).toEqual([16, 18, 20, 21, 22])

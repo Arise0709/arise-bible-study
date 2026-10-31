@@ -15,6 +15,7 @@ import { ACCENTS, LINE_SPACING, SCRIPTURE_FONTS, TONES, UI_FONTS } from '../lib/
 import { db } from '../db/db'
 import { downloadBackup } from '../lib/dataSafety'
 import { DataProtectionStatus, RestoreBackup } from '../components/DataSafety'
+import { OfflineSettings } from '../components/Offline'
 
 /* ================= Dictionary ================= */
 
@@ -441,6 +442,10 @@ export function SettingsPage() {
           If something breaks, the app sends only the error message, the part of the code where it happened, the page name, and your browser type.
           Never your notes, studies, sermons, highlights, or settings.
         </p>
+      </section>
+      <section className="card stack">
+        <h2>Offline reading</h2>
+        <OfflineSettings />
       </section>
       <section className="card stack">
         <h2>Keyboard shortcuts</h2>
