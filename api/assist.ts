@@ -15,6 +15,10 @@ const TASKS: Record<string, string> = {
   questions: 'Suggest 6 to 10 study or discussion questions that send the reader back into the passage. Mix observation, interpretation, and application questions.',
   summarize: 'Summarize the reader\'s saved notes and conclusions faithfully. Keep their meaning; do not add new claims.',
   outline: 'Draft a teaching outline (introduction, 2 to 4 main points with subpoints, application, conclusion) built only from the reader\'s study. Each point should name the verse it comes from.',
+  explain: 'Explain the passage for a careful reader: its immediate context, its key original-language words (using only the lexicon and grammar given), and what the commentary excerpts say. Keep what the sources say separate from your own synthesis, and end with exegetical observations the reader can check in the text.',
+  commentaries: 'Compare the commentary excerpts given: where they agree, where they differ, and how each author\'s tradition shapes the reading. Attribute every view to its source id. Do not attribute a view to a commentator unless that commentator\'s excerpt states it.',
+  words: 'Explain the original-language words given: what each lexicon entry allows (its range of meanings) and what the grammar given shows. Say which senses the context supports and why. Do not build meaning from word roots or etymology, and do not treat every dictionary sense as meant here.',
+  ask: 'Answer the reader\'s question about this passage using only the materials. If the materials do not answer it, say so plainly instead of guessing.',
 }
 
 const SYSTEM = `You help a Bible student organize their own Bible study. Quote Scripture only in the translation used in the study materials. You are a study aid, not an authority.
@@ -25,7 +29,9 @@ Rules you must follow:
 3. Only mention Strong's numbers that appear in the materials.
 4. Keep interpretation separate from Scripture. When you interpret, say so ("This may mean...", "One reading is..."). When the passage allows more than one reasonable reading, or the materials do not settle a question, list it under "uncertainties".
 5. List every passage you rely on in "citations" using OSIS ids like John.3.16 or Rom.5.8.
-6. Write plainly, in short paragraphs, without em dashes.`
+6. Write plainly, in short paragraphs, without em dashes.
+7. Some materials are labeled with a source id in square brackets, like [SRC:COMM:JFB:Rom.8.28-28] or [SRC:LEX:G4903]. For each section, list in "sources" the ids of the materials that section relies on. Never say a commentator, lexicon, or encyclopedia says something unless its excerpt in the materials says it. When you combine sources or draw your own conclusion, label it as your synthesis.
+8. Where interpreters differ, say so and present the views fairly; do not settle a contested question by quoting one verse out of context. Your explanations are study aids, not revelation or authority.`
 
 const SCHEMA = {
   type: 'object',
@@ -37,8 +43,8 @@ const SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['heading', 'body'],
-        properties: { heading: { type: 'string' }, body: { type: 'string' } },
+        required: ['heading', 'body', 'sources'],
+        properties: { heading: { type: 'string' }, body: { type: 'string' }, sources: { type: 'array', items: { type: 'string' } } },
       },
     },
     citations: { type: 'array', items: { type: 'string' } },
@@ -83,7 +89,7 @@ export async function POST(request: Request) {
   const g = await guard(request)
   if (!g.ok) return deny(g.status, g.error, g.retryAfter)
 
-  let body: { task?: string; materials?: string }
+  let body: { task?: string; materials?: string; question?: string }
   try {
     const raw = await request.text()
     if (raw.length > MAX_BODY) return deny(413, 'This study is too large to send in one request. Try summarizing one section at a time.')
@@ -94,6 +100,9 @@ export async function POST(request: Request) {
   const task = TASKS[body.task ?? '']
   const materials = String(body.materials ?? '')
   if (!task) return Response.json({ error: 'Unknown task.' }, { status: 400 })
+  const question = typeof body.question === 'string' ? body.question.trim() : ''
+  if (body.task === 'ask' && !question) return Response.json({ error: 'Type a question about the passage first.' }, { status: 400 })
+  if (question.length > 500) return Response.json({ error: 'Please keep the question under 500 characters.' }, { status: 400 })
   if (!materials.trim()) return Response.json({ error: 'There is nothing in this study yet for the assistant to work with.' }, { status: 400 })
   if (materials.length > 120_000) return Response.json({ error: 'This study is too large to send in one request. Try summarizing one section at a time.' }, { status: 413 })
 
@@ -110,7 +119,7 @@ export async function POST(request: Request) {
       messages: [
         {
           role: 'user',
-          content: `<study_materials>\n${materials}\n</study_materials>\n\nTask: ${task}`,
+          content: `<study_materials>\n${materials}\n</study_materials>\n\nTask: ${task}${body.task === 'ask' ? `\n\n<question>\n${question.replace(/</g, '‹')}\n</question>` : ''}`,
         },
       ],
     })

@@ -337,3 +337,93 @@ export async function loadTranslationBook(id: string, book: string): Promise<(st
   const d = await getJson<{ c: (string | null)[][] }>(`translations/${id}/${book}.json`, `${name} in ${id}`)
   return d.c
 }
+
+/* ---------------- Commentaries (public domain; see public/data/commentary/index.json) ---------------- */
+
+export interface CommentaryWork {
+  id: string
+  title: string
+  short: string
+  author: string
+  era: string
+  edition: string
+  tradition: string
+  level: string
+  status: string
+  copyright: string
+  license: string
+  attribution: string
+  scope: string
+  source: string
+  version: string
+  books: number
+  chapters: number
+}
+export interface CommentaryIndex {
+  works: CommentaryWork[]
+  notIncluded: { id: string; title: string; author: string; status: string; reason: string }[]
+}
+export interface CommentaryCoverage {
+  intro: boolean
+  chapters: Record<string, { overview: boolean; ranges: [number, number][] }>
+}
+/** [first verse, last verse, html]: a note on a verse or a passage, exactly as the commentary assigns it */
+export type CommentaryEntry = [number, number, string]
+export interface CommentaryChapter {
+  c: string[] // chapter overview
+  e: CommentaryEntry[]
+}
+
+export const loadCommentaryIndex = () => getJson<CommentaryIndex>('commentary/index.json', 'the commentary list')
+/** Which chapters and verses a commentary covers in a book; null when it has nothing on that book. */
+export function loadCommentaryCoverage(id: string, book: string): Promise<CommentaryCoverage | null> {
+  return getJson<CommentaryCoverage>(`commentary/${id}/${book}/coverage.json`, `the ${id} coverage of ${book}`).catch((e) => {
+    if (e instanceof DataError && /404|missing from this deployment/.test(e.message)) return null
+    throw e
+  })
+}
+export const loadCommentaryChapter = (id: string, book: string, chapter: number) =>
+  getJson<CommentaryChapter>(`commentary/${id}/${book}/${chapter}.json`, `the ${id} commentary on ${book} ${chapter}`)
+export const loadCommentaryIntro = (id: string, book: string) => getJson<{ h: string }>(`commentary/${id}/${book}/intro.json`, `the ${id} introduction to ${book}`)
+
+/* ---------------- Original languages (STEPBible TAHOT/TAGNT, CC BY 4.0; BDB via Open Scriptures) ---------------- */
+
+/** Hebrew: [text, transliteration, gloss, Strong's tags, grammar, sense label, 'Q' if Qere]
+ *  Greek:  [text, transliteration, gloss, Strong's, grammar, lemma, lemma gloss, edition flag ('' | 'T' | 'N' | 'O')] */
+export type OrigWord = string[]
+export interface OrigChapter {
+  l: 'H' | 'G'
+  v: Record<string, OrigWord[]>
+}
+export interface BdbEntry {
+  id: string
+  w: string
+  status: string
+  h: string
+  root: { w: string; def: string } | null
+  family: { id: string; w: string; def: string }[]
+}
+export const loadOrigChapter = (book: string, chapter: number) => getJson<OrigChapter>(`orig/${book}/${chapter}.json`, `the original-language text of ${book} ${chapter}`)
+export const loadMorphTable = (lang: 'H' | 'G') => getJson<Record<string, string>>(`orig/morph-${lang}.json`, `the ${lang === 'H' ? 'Hebrew' : 'Greek'} grammar table`)
+export async function loadForms(id: string): Promise<[string, number][]> {
+  const shard = await getJson<Record<string, [string, number][]>>(`orig/forms/${shard100(id)}.json`, `word forms near ${id}`)
+  return shard[id] ?? []
+}
+export async function loadBdb(id: string): Promise<BdbEntry[]> {
+  const shard = await getJson<Record<string, BdbEntry[]>>(`bdb/${shard100(id)}.json`, `BDB entries near ${id}`).catch(() => ({}) as Record<string, BdbEntry[]>)
+  return shard[id] ?? []
+}
+/** BDB and word-form files hold 100 Strong's numbers each. */
+function shard100(id: string): string {
+  const m = /^([HG])(\d+)/.exec(id)
+  if (!m) throw new DataError(id, "This is not a valid Strong's number.")
+  return `${m[1]}${Math.floor(parseInt(m[2], 10) / 100)}`
+}
+
+/** Strong's number without extension letter or leading zeros: "{H0430G}" -> "H430". */
+export function baseStrong(tag: string): string | null {
+  const m = /([HG])0*(\d+)/.exec(tag)
+  return m ? `${m[1]}${m[2]}` : null
+}
+/** STEPBible transliteration in plain form: "be./re.Shit" -> "be-reshit". */
+export const plainXlit = (x: string) => x.replace(/\./g, '').replace(/\//g, '-').toLowerCase()

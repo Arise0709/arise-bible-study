@@ -10,9 +10,11 @@ export interface WordSelection {
   word: number // index into verse.w; -1 for an untagged/added segment
   english: string // the English text clicked (the whole tagged phrase)
   segIndex: number
+  /** set when chosen in the interlinear view: the word's position in the Hebrew/Greek verse and its Strong's number */
+  orig?: { index: number; strongs: string }
 }
 
-export type ToolTab = 'word' | 'dictionary' | 'thesaurus' | 'xrefs' | 'notes' | 'ai'
+export type ToolTab = 'word' | 'commentary' | 'context' | 'dictionary' | 'thesaurus' | 'xrefs' | 'notes' | 'ai'
 
 export interface Settings {
   theme: 'system' | 'light' | 'dark'
@@ -31,6 +33,11 @@ export interface Settings {
   showTagged: boolean
   aiEnabled: boolean
   errorReports: boolean // send anonymous crash reports (no study content)
+  commentary: string // commentator shown first in the Commentary tab
+  compareCommentary: string // second commentator shown alongside, '' for none
+  studyLevel: 'beginner' | 'advanced' // how much technical detail study tools show first (same sources either way)
+  interlinear: boolean // reader shows the Hebrew/Greek interlinear
+  interlinearGrammar: boolean // interlinear shows Strong's numbers and grammar codes under each word
 }
 
 export const DEFAULTS: Settings = {
@@ -50,6 +57,11 @@ export const DEFAULTS: Settings = {
   showTagged: false,
   aiEnabled: false,
   errorReports: true,
+  commentary: 'MHCC',
+  compareCommentary: '',
+  studyLevel: 'beginner',
+  interlinear: false,
+  interlinearGrammar: false,
 }
 
 interface Ctx {
@@ -65,6 +77,9 @@ interface Ctx {
   updateSettings: (p: Partial<Settings>) => void
   toolsOpen: boolean
   setToolsOpen: (b: boolean) => void
+  /** The chapter the reader is showing, so study tools can follow it before a verse is chosen. */
+  readerLoc: { book: string; chapter: number } | null
+  setReaderLoc: (l: { book: string; chapter: number }) => void
 }
 
 const StudyCtx = createContext<Ctx | null>(null)
@@ -73,6 +88,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   const [selection, setSelection] = useState<WordSelection | null>(null)
   const [focusVerse, setFocusVerse] = useState<Ctx['focusVerse']>(null)
   const [tool, setTool] = useState<ToolTab>('word')
+  const [readerLoc, setReaderLocState] = useState<Ctx['readerLoc']>(null)
+  const setReaderLoc = useCallback((l: { book: string; chapter: number }) => setReaderLocState((cur) => (cur?.book === l.book && cur.chapter === l.chapter ? cur : l)), [])
   const [lookup, setLookupState] = useState('')
   const [settings, setSettings] = useState<Settings>(() => {
     try {
@@ -128,8 +145,8 @@ export function StudyProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ selection, select, focusVerse, setFocusVerse, tool, setTool, lookup, setLookup, settings, updateSettings, toolsOpen, setToolsOpen }),
-    [selection, select, focusVerse, tool, lookup, setLookup, settings, updateSettings, toolsOpen],
+    () => ({ selection, select, focusVerse, setFocusVerse, tool, setTool, lookup, setLookup, settings, updateSettings, toolsOpen, setToolsOpen, readerLoc, setReaderLoc }),
+    [selection, select, focusVerse, tool, lookup, setLookup, settings, updateSettings, toolsOpen, readerLoc, setReaderLoc],
   )
   return <StudyCtx.Provider value={value}>{children}</StudyCtx.Provider>
 }
@@ -145,6 +162,8 @@ export interface StudySink {
   studyId: string
   study: import('../db/db').Study
   add: (section: string, block: import('../db/db').Block) => void
+  /** Show a passage in the workspace's Scripture panel (keeps the study open). */
+  showPassage?: (r: { book: string; chapter: number; verse?: number }) => void
 }
 export const StudySinkCtx = createContext<StudySink | null>(null)
 export const useStudySink = () => useContext(StudySinkCtx)

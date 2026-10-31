@@ -6,7 +6,7 @@ import {
   SOURCE_LABEL, getPassage, lemmaCandidates, loadArchaic, loadDictIndex, loadHitchcock, loadIsbe, loadWebster, loadWordnet, loadXrefs,
   passageToText, type DictSource,
 } from '../lib/data'
-import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
+import { formatRef, parseOsis, parseRef, refPath, toOsis } from '../lib/refs'
 import { searchBible } from '../lib/search'
 import { useStudy, useStudySink } from '../lib/state'
 import { db, uid, type DictEntry, type VerseNote } from '../db/db'
@@ -594,35 +594,79 @@ export function Highlighted({ text, term }: { text: string; term: string }) {
 /* ================= Cross references ================= */
 
 export function XrefPanel() {
-  const { focusVerse, selection } = useStudy()
+  const { focusVerse, selection, settings } = useStudy()
   const sink = useStudySink()
+  const nav = useNavigate()
   const v = focusVerse ?? (selection ? { book: selection.book, chapter: selection.chapter, verse: selection.verse } : null)
   const [limit, setLimit] = useState(15)
+  const [filter, setFilter] = useState('')
+  const [picked, setPicked] = useState<string[]>([])
+  const tr = settings.translation || 'KJV'
   const { data, error, loading } = useAsync(() => (v ? loadXrefs(v.book, v.chapter, v.verse) : Promise.resolve([])), [v?.book, v?.chapter, v?.verse])
-  const shown = data?.slice(0, limit) ?? []
-  const { data: texts } = useAsync(async () => Promise.all(shown.map(([r]) => getPassage(parseOsis(r)!).then(passageToText).catch(() => ''))), [shown.map((s) => s[0]).join()])
+  useEffect(() => setPicked([]), [v?.book, v?.chapter, v?.verse])
+  const textOf = (r: string) => getPassage(parseOsis(r)!, tr).catch(() => getPassage(parseOsis(r)!)).then(passageToText).catch(() => '')
+  const q = filter.trim().toLowerCase()
+  // filtering searches the reference names and the text of every linked passage (loaded on demand)
+  const { data: allTexts, loading: filtering } = useAsync(async () => (q && data ? Promise.all(data.map(([r]) => textOf(r))) : null), [q ? 'on' : 'off', data, tr])
+  const matching = data ? data.map((d, i) => ({ d, i })).filter(({ d, i }) => !q || formatRef(parseOsis(d[0])!).toLowerCase().includes(q) || (allTexts?.[i] ?? '').toLowerCase().includes(q)) : []
+  const shown = matching.slice(0, limit)
+  const { data: texts } = useAsync(async () => Promise.all(shown.map(({ d: [r] }) => textOf(r))), [shown.map(({ d }) => d[0]).join(), tr])
+  const { data: compareTexts } = useAsync(async () => Promise.all(picked.map((r) => textOf(r))), [picked.join(), tr])
   if (!v) return <Empty>Select a verse number in the reader to see related passages.</Empty>
   const from = `${v.book}.${v.chapter}.${v.verse}`
+  const open = (r: string) => {
+    const ref = parseOsis(r)!
+    if (sink?.showPassage) sink.showPassage({ book: ref.book, chapter: ref.chapter, verse: ref.verse })
+    else nav(refPath(ref), { state: { from: { book: v.book, chapter: v.chapter, verse: v.verse } } })
+  }
   return (
-    <div className="stack">
+    <div className="stack" data-testid="xref-panel">
       <div className="row">
         <h3 style={{ margin: 0 }}>Cross-references for {formatRef(v)}</h3>
         <span className="badge source">OpenBible.info</span>
       </div>
       <div className="notice small">
-        Community-voted links between passages. A link means readers found the passages related, not that they teach the same thing. You
-        decide and explain the connection.
+        Community-voted links between passages, ranked by votes. A link means readers found the passages related, not that they teach the same
+        thing. The source does not label link types (quotation, parallel, allusion), so none are shown. You decide and explain the connection.
       </div>
+      {data && data.length > 0 && (
+        <input type="search" value={filter} onChange={(e) => { setFilter(e.target.value); setLimit(15) }} placeholder="Search these references (book or words)" aria-label="Search these cross-references" />
+      )}
+      {filtering && <Loading label="Searching the linked passages" />}
+      {picked.length > 0 && (
+        <section className="card stack" data-testid="xref-compare" aria-label="Compare references">
+          <div className="row">
+            <strong>Compare ({picked.length})</strong>
+            <span className="spacer" />
+            <button className="btn sm" onClick={() => setPicked([])}>Clear</button>
+          </div>
+          <div className="xref-compare">
+            {picked.map((r, i) => (
+              <div key={r} className="stack" style={{ gap: 2 }}>
+                <ScriptureRef r={r} preview={false} />
+                <div style={{ fontFamily: 'var(--scripture-font)', fontSize: '0.95em' }}>{compareTexts?.[i]}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       {loading && <Loading />}
       {error && <ErrorBox error={error} />}
       {data && !data.length && <Empty>No cross-references are listed for this verse.</Empty>}
+      {q && data && !filtering && <div className="small muted" role="status">{matching.length} of {data.length} match</div>}
       <ul className="list">
-        {shown.map(([r, votes], i) => (
+        {shown.map(({ d: [r, votes] }, i) => (
           <li key={r}>
-            <div className="row">
+            <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+              <label className="row" style={{ gap: 4 }}>
+                <input type="checkbox" checked={picked.includes(r)} onChange={(e) => setPicked((p) => (e.target.checked ? [...p, r].slice(-4) : p.filter((x) => x !== r)))} aria-label={`Compare ${formatRef(parseOsis(r)!)}`} />
+              </label>
               <ScriptureRef r={r} preview={false} />
               <span className="muted small">{votes} votes</span>
               <span className="spacer" />
+              <button className="btn sm" onClick={() => open(r)} title={sink?.showPassage ? 'Show in the Scripture panel' : 'Open in the reader (with a link back)'}>
+                Open
+              </button>
               {sink && (
                 <button
                   className="btn sm"
@@ -639,9 +683,9 @@ export function XrefPanel() {
           </li>
         ))}
       </ul>
-      {data && data.length > limit && (
+      {matching.length > limit && (
         <button className="btn sm" onClick={() => setLimit(limit + 15)}>
-          Show more ({data.length - limit} remaining)
+          Show more ({matching.length - limit} remaining)
         </button>
       )}
     </div>

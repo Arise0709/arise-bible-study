@@ -95,7 +95,12 @@ function Workspace({ initial }: { initial: Study }) {
   const [loc, setLoc] = useState({ book: passage?.book ?? 'John', chapter: passage?.chapter ?? 1, verse: passage?.verse })
   const wide = useMediaQuery('(min-width: 901px)')
   const [mobileTab, setMobileTab] = useState<'scripture' | 'tools' | 'notes'>('scripture')
-  const { selection, toolsOpen } = useStudy()
+  const { selection, toolsOpen, setFocusVerse, select } = useStudy()
+  // the tools follow this study's passage, not a verse chosen earlier elsewhere
+  useEffect(() => {
+    if (passage) setFocusVerse({ book: passage.book, chapter: passage.chapter, verse: passage.verse ?? 1 })
+    select(null)
+  }, [initial.id]) // eslint-disable-line react-hooks/exhaustive-deps
   // `base` is the stored version this tab is editing; saves never overwrite a newer one from another tab
   const base = useRef(initial.updatedAt ?? 0)
   const autosave = useAutosave(study, (v: Study) => guardedPut('studies', v, base), `studies:${initial.id}`, 600, base)
@@ -124,8 +129,12 @@ function Workspace({ initial }: { initial: Study }) {
       studyId: study.id,
       study,
       add: (section: string, block: Block) => update((s) => ({ ...s, sections: { ...s.sections, [section]: [...(s.sections[section as WorksheetKey] ?? []), block] } })),
+      showPassage: (r: { book: string; chapter: number; verse?: number }) => {
+        setLoc({ book: r.book, chapter: r.chapter, verse: r.verse })
+        if (!wide) setMobileTab('scripture')
+      },
     }),
-    [study, update],
+    [study, update, wide],
   )
 
   const reader = <Reader inPanel book={loc.book} chapter={loc.chapter} target={loc.verse} onNavigate={(b, c, v) => setLoc({ book: b, chapter: c, verse: v })} />

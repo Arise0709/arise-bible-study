@@ -7,13 +7,14 @@ import type { Block, WorksheetKey } from '../db/db'
 import { BlockView } from './Blocks'
 import { Empty, ErrorBox, Loading, toast, useAsync } from './ui'
 
-const TARGET: Record<AiTask, WorksheetKey> = { organize: 'observation', questions: 'interpretation', summarize: 'summary', outline: 'summary' }
+const TARGET: Record<AiTask, WorksheetKey> = { organize: 'observation', questions: 'interpretation', summarize: 'summary', outline: 'summary', explain: 'interpretation', commentaries: 'interpretation', words: 'wordStudy', ask: 'interpretation' }
 
 export function AiPanel() {
   const { settings } = useStudy()
   const sink = useStudySink()
   const { data: status, loading } = useAsync(() => (settings.aiEnabled ? aiStatus() : Promise.resolve(null)), [settings.aiEnabled])
   const [busy, setBusy] = useState<AiTask | null>(null)
+  const [question, setQuestion] = useState('')
   const [error, setError] = useState<Error | null>(null)
   const [result, setResult] = useState<{ task: AiTask; block: Extract<Block, { kind: 'ai' }> } | null>(null)
 
@@ -75,7 +76,7 @@ export function AiPanel() {
     setError(null)
     setResult(null)
     try {
-      setResult({ task: t, block: await runAssistant(t, sink.study) })
+      setResult({ task: t, block: await runAssistant(t, sink.study, { question, commentaries: [settings.commentary, settings.compareCommentary].filter(Boolean) }) })
     } catch (e) {
       setError(e as Error)
     } finally {
@@ -92,6 +93,26 @@ export function AiPanel() {
           </button>
         ))}
       </div>
+      <form
+        className="stack"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (question.trim()) void run('ask')
+        }}
+      >
+        <label className="field">
+          <span>Ask about this passage</span>
+          <textarea value={question} onChange={(e) => setQuestion(e.target.value.slice(0, 500))} rows={2} placeholder="For example: What does “all things” include here?" />
+        </label>
+        <div className="row">
+          <button className="btn" disabled={!!busy || !question.trim()}>
+            <Sparkles size={15} /> Ask
+          </button>
+          <span className="muted small">
+            Uses this passage, your notes, the {[settings.commentary, settings.compareCommentary].filter(Boolean).join(' and ')} commentary, and the original words.
+          </span>
+        </div>
+      </form>
       {busy && <Loading label="The assistant is reading your study" />}
       {error && <ErrorBox error={error} />}
       {result && (

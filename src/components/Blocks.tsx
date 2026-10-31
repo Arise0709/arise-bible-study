@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { ArrowDown, ArrowUp, BookOpen, HelpCircle, Link2, NotebookPen, Sparkles, Trash2 } from 'lucide-react'
 import { getPassage, loadTranslationIndex, passageToText } from '../lib/data'
 import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
-import { uid, type Block } from '../db/db'
+import { uid, type AiSource, type Block } from '../db/db'
+import { useStudy } from '../lib/state'
 import { Dialog, useAsync } from './ui'
 import { DetectedRefs, LinkedText, ScriptureRef } from './Scripture'
 
@@ -184,6 +185,7 @@ export function BlockView({ block: b, onChange, tools, readOnly, tr = 'KJV' }: {
           <div style={{ whiteSpace: 'pre-wrap' }}>
             <LinkedText text={b.text} />
           </div>
+          {(b.sources?.length ?? 0) > 0 && <AiSources sources={b.sources!} />}
           {b.citations.length > 0 && (
             <div className="row small" style={{ marginTop: 6 }}>
               <span className="muted">Cites:</span>
@@ -288,5 +290,31 @@ export function TranslationSelect({ value, onChange, id, label }: { value: strin
         ))}
       </select>
     </label>
+  )
+}
+
+/** Sources an AI draft relied on (checked to be ones the app supplied). Each opens the commentary note or word study. */
+function AiSources({ sources }: { sources: AiSource[] }) {
+  const { setTool, setToolsOpen, setFocusVerse, updateSettings, select } = useStudy()
+  const open = (s: AiSource) => {
+    setFocusVerse({ book: s.book, chapter: s.chapter, verse: s.verse })
+    if (s.kind === 'comm' && s.work) {
+      updateSettings({ commentary: s.work })
+      setTool('commentary')
+    } else if (s.kind === 'lex' && s.strongs && s.index !== undefined) {
+      select({ book: s.book, chapter: s.chapter, verse: s.verse, word: -2, english: s.label, segIndex: -1, orig: { index: s.index, strongs: s.strongs } })
+      setTool('word')
+    }
+    setToolsOpen(true)
+  }
+  return (
+    <div className="row small" style={{ marginTop: 6, flexWrap: 'wrap', gap: 6 }} data-testid="ai-sources">
+      <span className="muted">Sources used:</span>
+      {sources.map((s) => (
+        <button key={s.id} className="btn sm" onClick={() => open(s)} title={s.kind === 'comm' ? 'Open this commentary note' : 'Open this word study'}>
+          {s.label}
+        </button>
+      ))}
+    </div>
   )
 }

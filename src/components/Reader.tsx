@@ -1,10 +1,11 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, Suspense, lazy } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate } from 'react-router-dom'
 import { Bookmark, BookOpen, ChevronLeft, ChevronRight, Copy, Highlighter, Link2, NotebookPen, Plus, StickyNote, X } from 'lucide-react'
 import { FLAG_ADDED, FLAG_DIVINE, FLAG_RED, getPassage, passageToText, loadChapter, loadBookIndex, loadTranslationBook, loadTranslationIndex, parseWord, segText, verseText, type Book, type Segment, type Verse } from '../lib/data'
-import { BOOKS, BOOK_BY_ID, BOOK_INDEX, formatRef, parseOsis, toOsis, type Ref } from '../lib/refs'
+import { BOOKS, BOOK_BY_ID, BOOK_INDEX, formatRef, parseOsis, refPath, toOsis, type Ref } from '../lib/refs'
 import { quoteTr, useStudy, useStudySink } from '../lib/state'
+const InterlinearChapter = lazy(() => import('./Interlinear').then((m) => ({ default: m.InterlinearChapter })))
 import { db, emptyWorksheet, uid, type Highlight, type VerseNote } from '../db/db'
 import { Dialog, ErrorBox, Loading, toast, toastUndo, useAsync } from './ui'
 import { LinkedText } from './Scripture'
@@ -23,9 +24,11 @@ interface Props {
   targets?: number[]
   /** The requested passage runs on into a later chapter (e.g. Gen 1:1-2:3). */
   continues?: { chapter: number; spec: string; toChapter: number; toVerse: number }
+  /** the passage a cross-reference was opened from */
+  backTo?: { book: string; chapter: number; verse?: number }
 }
 
-export function Reader({ book, chapter, target, onNavigate, inPanel, targets, continues }: Props) {
+export function Reader({ book, chapter, target, onNavigate, inPanel, targets, continues, backTo }: Props) {
   const { data: index } = useAsync(loadBookIndex, [])
   // The chapter's own small file, not the whole book. Chapter numbers past the end are caught below.
   const bookEntry = index?.find((b) => b.id === book)
@@ -35,7 +38,7 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets, co
     [book, chapter, chapterExists],
   )
   const bookName = bookEntry?.name ?? BOOK_BY_ID[book]?.name ?? book
-  const { settings, updateSettings, selection, select, setFocusVerse, setTool, setToolsOpen } = useStudy()
+  const { settings, updateSettings, selection, select, setFocusVerse, setTool, setToolsOpen, setReaderLoc } = useStudy()
   const sink = useStudySink()
   const nav = useNavigate()
   const [sel, setSel] = useState<{ from: number; to: number } | null>(null)
@@ -94,6 +97,7 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets, co
   }, [notes, book, chapter])
 
   useEffect(() => setSel(null), [book, chapter])
+  useEffect(() => setReaderLoc({ book, chapter }), [book, chapter, setReaderLoc])
 
   useEffect(() => {
     if (!ch) return
@@ -304,6 +308,23 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets, co
               <option key={id} value={id}>vs {id}</option>
             ))}
         </select>
+        <label className="sr-only" htmlFor={`view-${inPanel ? 'p' : 'm'}`}>View</label>
+        <select
+          id={`view-${inPanel ? 'p' : 'm'}`}
+          value={settings.interlinear ? 'interlinear' : settings.showTagged ? 'word' : 'reading'}
+          onChange={(e) => updateSettings({ interlinear: e.target.value === 'interlinear', showTagged: e.target.value === 'word' ? true : e.target.value === 'reading' ? false : settings.showTagged })}
+          title="Reading, word study, or interlinear"
+          style={{ maxWidth: 130 }}
+        >
+          <option value="reading">Reading</option>
+          <option value="word">Word study</option>
+          <option value="interlinear">Interlinear</option>
+        </select>
+        {settings.interlinear && (
+          <label className="row small" style={{ gap: 4 }}>
+            <input type="checkbox" checked={settings.interlinearGrammar} onChange={(e) => updateSettings({ interlinearGrammar: e.target.checked })} /> grammar
+          </label>
+        )}
         <span className="spacer" />
         <button className="iconbtn" aria-pressed={settings.showTagged} onClick={() => updateSettings({ showTagged: !settings.showTagged })} title="Underline words with Strong's numbers" aria-label="Underline words with Strong's numbers">
           <Link2 size={17} />
@@ -350,6 +371,13 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets, co
           <p className="sr-only" id={`rove-help-${inPanel ? 'p' : 'm'}`}>
             Use the up and down arrow keys to move between verses, and left and right to move word by word. Press Enter to select.
           </p>
+          {backTo && (backTo.book !== book || backTo.chapter !== chapter) && (
+            <p className="no-print" style={{ fontFamily: 'var(--ui-font)', fontSize: 'calc(var(--ui-size) * 0.9)', margin: '0 0 8px' }}>
+              <Link to={refPath(backTo)} data-testid="back-to">
+                ← Back to {formatRef(backTo)}
+              </Link>
+            </p>
+          )}
           <h1 className="chapter-title">
             {bookName.toUpperCase()} {chapter}
             {primary !== 'KJV' && <span className="muted" style={{ fontSize: '0.75em' }}> · {primary}</span>}
@@ -370,7 +398,44 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets, co
               <Segments segs={ch.title} verse={null} book={book} chapter={chapter} />
             </p>
           )}
-          {ch.verses.map((v) => {
+          {settings.interlinear && (
+            <Suspense fallback={<Loading label="Loading the original text" />}>
+            <InterlinearChapter
+              book={book}
+              chapter={chapter}
+              kjv={ch}
+              showGrammar={settings.interlinearGrammar}
+              renderVerseHead={(n) => {
+                const isSel = sel && n >= sel.from && n <= sel.to
+                return (
+                  <span className={`verse ${hlMap.get(`${book}.${chapter}.${n}`) ? 'hl-' + hlMap.get(`${book}.${chapter}.${n}`) : ''} ${rangeSet.has(n) ? 'in-range' : ''}`} id={`v-${book}-${chapter}-${n}`}>
+                    <button className="vnum" data-rove="v" tabIndex={n === roveStart ? 0 : -1} onClick={(e) => onVerseNum(n, e.shiftKey)} aria-label={`Select verse ${n}`} aria-pressed={!!isSel}>
+                      {n}
+                    </button>
+                    {bmCovered.has(n) && <Bookmark size={11} aria-label={`Bookmarked (${bmCovered.get(n)})`} />}
+                    {(notesByVerse.get(n)?.length ?? 0) > 0 && <NotebookPen size={11} aria-label="Has notes" />}
+                  </span>
+                )
+              }}
+              translationLine={(n) => {
+                const kv = ch.verses.find((x) => x.v === n)
+                const text = primary === 'KJV' ? (kv ? verseText(kv) : '') : altVerse(primaryBook, n) ?? ''
+                return (
+                  <>
+                    <span className="tag">{primary}</span> {text}
+                    {compare && (
+                      <span className="compare-line">
+                        <span className="tag">{compare}</span>
+                        {compare === 'KJV' ? (kv ? verseText(kv) : '') : altVerse(compareBook, n) ?? ''}
+                      </span>
+                    )}
+                  </>
+                )
+              }}
+            />
+            </Suspense>
+          )}
+          {!settings.interlinear && ch.verses.map((v) => {
             const key = `${book}.${chapter}.${v.v}`
             const hl = hlMap.get(key)
             const isSel = sel && v.v >= sel.from && v.v <= sel.to

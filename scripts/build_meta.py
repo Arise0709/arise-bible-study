@@ -87,6 +87,22 @@ def build_sources():
             "notes": "Used fields: brief gloss and grammatical code (part of speech) for Hebrew and Greek, and the Abbott-Smith Manual Greek Lexicon (1922) senses for Greek. The Hebrew 'Meaning' column (Abridged BDB, Online Bible) is not used because it requires separate permission. Changes: reformatted to JSON; Scripture references converted to app links.",
         },
         {
+            "id": "stepbible-tagged", "kind": "original-language text", "name": "STEPBible TAHOT and TAGNT (tagged Hebrew Old Testament and Greek New Testament)",
+            "provider": "STEPBible.org / Tyndale House, Cambridge", "url": "https://github.com/STEPBible/STEPBible-Data",
+            "file": "TAHOT (4 files), TAGNT (2 files), TEHMC, TEGMC", "version": "git be4191f0082aeedddb0eff0c02c966292b2bd641",
+            "license": "CC BY 4.0",
+            "attribution": "Data created by www.STEPBible.org based on work at Tyndale House Cambridge (CC BY 4.0).",
+            "notes": "Used for the actual Hebrew and Greek words of each verse (Hebrew: Leningrad Codex via OSHB/Westminster; Greek: NA28, SBL, Tyndale House, Textus Receptus, Byzantine and others, with the editions containing each word), transliteration, word-by-word English glosses, Strong's numbers, grammar codes, and STEPBible's expansions of those codes. Readings not in the Leningrad Codex (marked X/R/V) are left out; Qere readings are shown and labeled. Changes: reformatted to JSON per chapter; Strong's numbers without leading zeros; the backslash that marks punctuation removed. STEPBible asks that its raw files be obtained from github.com/STEPBible; the app does not redistribute them.",
+        },
+        {
+            "id": "oshb-lexicon", "kind": "lexicon", "name": "Open Scriptures Hebrew Lexicon (Brown-Driver-Briggs)",
+            "provider": "Open Scriptures Hebrew Bible Project", "url": "https://github.com/openscriptures/HebrewLexicon",
+            "file": "BrownDriverBriggs.xml, LexicalIndex.xml", "version": "git 21c9add13bc727d3a951361778e97e3ff7afd1ce",
+            "license": "CC BY 4.0 (markup); the text of Brown, Driver, Briggs (1906) is public domain",
+            "attribution": "Hebrew lexicon from the Open Scriptures Hebrew Bible Project (CC BY 4.0).",
+            "notes": "A work in progress: each entry is marked done (full BDB entry, 560 entries) or partly transcribed (basic definitions, with or without references). Partial entries are shown with that label. Strong's numbers that combine words BDB treats separately show every BDB entry. Arabic, Ethiopic, and Syriac words not transcribed in the source are marked as such. Changes: XML converted to a small HTML subset; references converted to app links (references beyond KJV verse numbering are shown as text).",
+        },
+        {
             "id": "openbible-xrefs", "kind": "cross-references", "name": "OpenBible.info Cross References",
             "provider": "OpenBible.info, distributed in scrollmapper/bible_databases", "url": "https://www.openbible.info/labs/cross-references/",
             "file": "cross_references.txt", "version": "2024-11-04 (scrollmapper git 59b18c5af5845728c275d5b7178ad0d024172b1f)",
@@ -131,7 +147,9 @@ def build_sources():
     ]
     files = {"kjv": ["kjvfull.xml"], "strongs": ["strongs-hebrew.js", "strongs-greek.js"], "stepbible": ["tbesh.txt", "tbesg.txt"],
              "openbible-xrefs": ["cross_references.txt"], "isbe": ["isbe.tei.xml"], "hitchcock": ["hitchcock.tei.xml"],
-             "webster1913": ["webster1913.tei.xml"], "wordnet": ["wn/wordnet-db-3.1.14.tgz"]}
+             "webster1913": ["webster1913.tei.xml"], "wordnet": ["wn/wordnet-db-3.1.14.tgz"],
+             "stepbible-tagged": ["lang/TAHOT-Gen-Deu.txt", "lang/TAHOT-Jos-Est.txt", "lang/TAHOT-Job-Sng.txt", "lang/TAHOT-Isa-Mal.txt", "lang/TAGNT-Mat-Jhn.txt", "lang/TAGNT-Act-Rev.txt", "lang/TEHMC.txt", "lang/TEGMC.txt"],
+             "oshb-lexicon": ["lang/BrownDriverBriggs.xml", "lang/LexicalIndex.xml"]}
     for s in S:
         s["sha256"] = {f: sha(os.path.join(SRC, f)) for f in files.get(s["id"], []) if os.path.exists(os.path.join(SRC, f))}
     missing = json.load(open(os.path.join(DATA, "reports", "strongs-missing.json")))

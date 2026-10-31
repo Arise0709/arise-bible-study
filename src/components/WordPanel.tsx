@@ -3,6 +3,18 @@ import { ArrowLeft, BookA, Info, Languages, Plus } from 'lucide-react'
 import { loadChapter, loadConcordance, loadStrongs, parseWord, segText, verseText, type StrongsEntry } from '../lib/data'
 import { decodeNumericKey, formatRef, toOsis } from '../lib/refs'
 import { describeMorph } from '../lib/morph'
+import { Suspense, lazy } from 'react'
+// original-language sections load with the first word study
+const ow = () => import('./OriginalWord')
+const OriginalInVerseL = lazy(() => ow().then((m) => ({ default: m.OriginalInVerse })))
+const BdbSectionL = lazy(() => ow().then((m) => ({ default: m.BdbSection })))
+const FormsSectionL = lazy(() => ow().then((m) => ({ default: m.FormsSection })))
+const PassageWordsL = lazy(() => ow().then((m) => ({ default: m.PassageWords })))
+const OriginalInVerse = (p: Parameters<typeof OriginalInVerseL>[0]) => <Suspense fallback={<Loading />}><OriginalInVerseL {...p} /></Suspense>
+const BdbSection = (p: Parameters<typeof BdbSectionL>[0]) => <Suspense fallback={null}><BdbSectionL {...p} /></Suspense>
+const FormsSection = (p: Parameters<typeof FormsSectionL>[0]) => <Suspense fallback={null}><FormsSectionL {...p} /></Suspense>
+const PassageWords = (p: Parameters<typeof PassageWordsL>[0]) => <Suspense fallback={<Loading />}><PassageWordsL {...p} /></Suspense>
+import { parseOsis } from '../lib/refs'
 import { useStudy, useStudySink } from '../lib/state'
 import { uid } from '../db/db'
 import { Empty, ErrorBox, Loading, toast, useAsync } from './ui'
@@ -22,7 +34,10 @@ export function ContextNote() {
 
 /** Shows what the clicked English words stand for in Hebrew or Greek. */
 export function WordPanel() {
-  const { selection, setLookup } = useStudy()
+  const { selection, setLookup, focusVerse } = useStudy()
+  const sink = useStudySink()
+  // in a study, list the passage's words; elsewhere, the chosen verse's words
+  const passage = sink ? parseOsis(sink.study.passage) : focusVerse ? { ...focusVerse, endVerse: undefined } : null
   const [stack, setStack] = useState<string[]>([]) // Strong's ids opened via "related" links
 
   useEffect(() => setStack([]), [selection])
@@ -50,6 +65,9 @@ export function WordPanel() {
           Click any word in the Bible text to see the Hebrew or Greek word behind it. Turn on the <Languages size={14} aria-label="underline" />
           {' '}link icon in the reader toolbar to underline every word that has a Strong's number.
         </Empty>
+        {passage?.verse !== undefined && (
+          <PassageWords book={passage.book} chapter={passage.chapter} from={passage.verse} to={(passage.endChapter ?? passage.chapter) === passage.chapter ? (passage.endVerse ?? passage.verse) : 999} />
+        )}
         <StrongsLookup onOpen={(id) => setStack([id])} />
         <ContextNote />
       </div>
@@ -57,6 +75,21 @@ export function WordPanel() {
   }
   if (loading) return <Loading />
   if (error) return <ErrorBox error={error} />
+  if (selection.orig) {
+    // chosen in the interlinear view: study that exact Hebrew/Greek word
+    const r = { book: selection.book, chapter: selection.chapter, verse: selection.verse }
+    return (
+      <div className="stack">
+        <div>
+          <div className="small muted">Interlinear · {formatRef(r)} · word {selection.orig.index + 1}</div>
+          <div className="word-english">“{selection.english.replace(/\//g, ' ').replace(/\s+/g, ' ')}”</div>
+        </div>
+        <OriginalInVerse book={selection.book} chapter={selection.chapter} verse={selection.verse} ids={[selection.orig.strongs]} index={selection.orig.index} />
+        <StrongsCard id={selection.orig.strongs} occurrence={{ ref: toOsis(r), english: selection.english, verseText: '' }} onOpen={(rid) => setStack([rid])} />
+        <ContextNote />
+      </div>
+    )
+  }
   const verse = chapterData?.verses.find((v) => v.v === selection.verse)
   if (!verse) return <ErrorBox error={new Error('That verse could not be found.')} />
   const ref = { book: selection.book, chapter: selection.chapter, verse: selection.verse }
@@ -140,6 +173,7 @@ export function WordPanel() {
             : `These ${wordCount} English words translate one original word. Prepositions, articles, or verb endings in Hebrew and Greek often need several English words.`}
         </div>
       )}
+      <OriginalInVerse book={selection.book} chapter={selection.chapter} verse={selection.verse} ids={mainIds.length ? mainIds : minorIds} />
       {(mainIds.length ? mainIds : minorIds).map((id) => (
         <StrongsCard
           key={id}
@@ -329,6 +363,8 @@ export function StrongsCard({
         <h3>Definition <span className="badge source">Strong's</span></h3>
         <p style={{ margin: 0 }}>{e.def || <span className="muted">No definition in the source.</span>}</p>
       </div>
+      {isHeb && <BdbSection id={e.id} />}
+      <FormsSection id={e.id} />
       {e.senses && (
         <div>
           <button className="btn sm" onClick={() => setShowSenses((s) => !s)} aria-expanded={showSenses}>

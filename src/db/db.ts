@@ -11,8 +11,20 @@ export type Block =
   | { id: string; kind: 'word'; strongs: string; english: string; ref: string; original: string; gloss: string; note: string }
   | { id: string; kind: 'xref'; from: string; to: string; explanation: string }
   | { id: string; kind: 'note'; text: string; uncertain?: boolean } // the reader's own words
-  | { id: string; kind: 'ai'; text: string; citations: string[]; warnings: string[]; createdAt: number } // labeled AI draft
+  | { id: string; kind: 'ai'; text: string; citations: string[]; warnings: string[]; createdAt: number; sources?: AiSource[] } // labeled AI draft
 
+/** A study resource an AI draft relied on, checked to be one the app gave it. */
+export interface AiSource {
+  id: string // e.g. COMM:JFB:Rom.8.28-28 or LEX:G4903
+  label: string
+  kind: 'comm' | 'lex'
+  work?: string
+  book: string
+  chapter: number
+  verse: number
+  index?: number // position of the word in the Hebrew/Greek verse
+  strongs?: string
+}
 export type BlockKind = Block['kind']
 
 export interface Highlight {

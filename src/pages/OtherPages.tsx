@@ -6,7 +6,7 @@ import { DictEntryEditor, DictionaryPanel, Highlighted, SourceBadge, ThesaurusPa
 import { StrongsCard, StrongsLookup, ContextNote } from '../components/WordPanel'
 import { Empty, ErrorBox, Loading, Tabs, timeAgo, toast, toastUndo, useAsync } from '../components/ui'
 import { LinkedText, ScriptureRef } from '../components/Scripture'
-import { loadSources, loadTranslationIndex } from '../lib/data'
+import { loadCommentaryIndex, loadSources, loadTranslationIndex } from '../lib/data'
 import { aiStatus, getAiCode, setAiCode } from '../ai/assist'
 import { BOOKS, formatRef, parseOsis, parseRef, parseRefList, refListPath, refPath, suggestRefText } from '../lib/refs'
 import { onSearchProgress, searchBible, type SearchResult } from '../lib/search'
@@ -511,6 +511,7 @@ export function SourcesPage() {
               ))}
             </section>
           ))}
+          <CommentarySources />
           <section className="card stack">
             <h2>Data integrity</h2>
             <p style={{ margin: 0 }}>
@@ -772,5 +773,66 @@ function AiCodeField() {
         The server also limits how often the assistant can be used each minute and each day, so a leaked code cannot run up costs.
       </p>
     </div>
+  )
+}
+
+/** Commentary rights records, and works not included with the reason. */
+function CommentarySources() {
+  const { data } = useAsync(loadCommentaryIndex, [])
+  if (!data) return null
+  return (
+    <section className="card stack" data-testid="commentary-sources">
+      <h2 style={{ margin: 0 }}>Commentaries</h2>
+      <p className="small" style={{ margin: 0 }}>
+        Each commentary is included only after its edition, source file, and redistribution rights were checked. The text is the source's own;
+        the app only separates introductions from verse notes and labels Bible text that a commentary reprints.
+      </p>
+      {data.works.map((w) => (
+        <div key={w.id} className="stack" style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+          <div className="row">
+            <strong>{w.short}</strong> <span className="badge source">approved</span>
+          </div>
+          <dl className="kv">
+            <dt>Work</dt>
+            <dd>{w.title}</dd>
+            <dt>Author</dt>
+            <dd>{w.author}</dd>
+            <dt>Published</dt>
+            <dd>{w.era}</dd>
+            <dt>Edition</dt>
+            <dd>{w.edition}</dd>
+            <dt>Copyright</dt>
+            <dd>{w.copyright}</dd>
+            <dt>License</dt>
+            <dd>{w.license}</dd>
+            <dt>Permitted use</dt>
+            <dd>{w.scope}</dd>
+            <dt>Attribution</dt>
+            <dd>{w.attribution}</dd>
+            <dt>Version</dt>
+            <dd>{w.version}</dd>
+            <dt>Source</dt>
+            <dd style={{ wordBreak: 'break-word' }}>{w.source}</dd>
+            <dt>Coverage</dt>
+            <dd>
+              {w.books} books, {w.chapters} chapters
+            </dd>
+          </dl>
+        </div>
+      ))}
+      <h3 style={{ marginBottom: 0 }}>Not included</h3>
+      <ul className="list small">
+        {data.notIncluded.map((w) => (
+          <li key={w.id}>
+            <strong>
+              {w.author}, {w.title}
+            </strong>{' '}
+            <span className="badge">{w.status === 'review' ? 'under review' : 'not verified'}</span>
+            <br />
+            {w.reason}
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

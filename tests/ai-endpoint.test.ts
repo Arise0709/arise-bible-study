@@ -123,6 +123,32 @@ describe('AI endpoint protection', () => {
     expect((await (await GET(req({ method: 'GET', code: 'nope' }))).json()).codeValid).toBe(false)
   })
 
+  it('Cycle 4 research tasks use the same protected endpoint and rules', async () => {
+    for (const task of ['explain', 'commentaries', 'words']) {
+      __resetForTests()
+      const r = await POST(req({ code: 'correct horse', body: { task, materials: 'PASSAGE Rom.8.28 ...' } }))
+      expect(r.status, task).toBe(200)
+    }
+    const sys = create.mock.calls[0][0].system as string
+    expect(sys).toMatch(/Never say a commentator, lexicon, or encyclopedia says something unless its excerpt/)
+    expect(sys).toMatch(/not revelation or authority/)
+    const schema = create.mock.calls[0][0].output_config.format.schema
+    expect(schema.properties.sections.items.required).toContain('sources')
+    // without the code, the new tasks are refused like the old ones
+    expect((await POST(req({ body: { task: 'explain', materials: 'x' } }))).status).toBe(401)
+  })
+
+  it('a question must be given for "ask", is length-limited, and is fenced off in the prompt', async () => {
+    expect((await POST(req({ code: 'correct horse', body: { task: 'ask', materials: 'PASSAGE x' } }))).status).toBe(400)
+    __resetForTests()
+    expect((await POST(req({ code: 'correct horse', body: { task: 'ask', materials: 'PASSAGE x', question: 'x'.repeat(501) } }))).status).toBe(400)
+    __resetForTests()
+    const r = await POST(req({ code: 'correct horse', body: { task: 'ask', materials: 'PASSAGE x', question: 'What does <all things> include?' } }))
+    expect(r.status).toBe(200)
+    const content = create.mock.calls.at(-1)![0].messages[0].content as string
+    expect(content).toMatch(/<question>\nWhat does ‹all things> include\?\n<\/question>/)
+  })
+
   it('uses the shared store when configured, and refuses if the store is down', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://redis.example'
     process.env.UPSTASH_REDIS_REST_TOKEN = 't'

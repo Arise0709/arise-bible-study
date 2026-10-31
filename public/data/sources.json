@@ -99,6 +99,44 @@
    }
   },
   {
+   "id": "stepbible-tagged",
+   "kind": "original-language text",
+   "name": "STEPBible TAHOT and TAGNT (tagged Hebrew Old Testament and Greek New Testament)",
+   "provider": "STEPBible.org / Tyndale House, Cambridge",
+   "url": "https://github.com/STEPBible/STEPBible-Data",
+   "file": "TAHOT (4 files), TAGNT (2 files), TEHMC, TEGMC",
+   "version": "git be4191f0082aeedddb0eff0c02c966292b2bd641",
+   "license": "CC BY 4.0",
+   "attribution": "Data created by www.STEPBible.org based on work at Tyndale House Cambridge (CC BY 4.0).",
+   "notes": "Used for the actual Hebrew and Greek words of each verse (Hebrew: Leningrad Codex via OSHB/Westminster; Greek: NA28, SBL, Tyndale House, Textus Receptus, Byzantine and others, with the editions containing each word), transliteration, word-by-word English glosses, Strong's numbers, grammar codes, and STEPBible's expansions of those codes. Readings not in the Leningrad Codex (marked X/R/V) are left out; Qere readings are shown and labeled. Changes: reformatted to JSON per chapter; Strong's numbers without leading zeros; the backslash that marks punctuation removed. STEPBible asks that its raw files be obtained from github.com/STEPBible; the app does not redistribute them.",
+   "sha256": {
+    "lang/TAHOT-Gen-Deu.txt": "e9b8546ee48fe0bfc57c3b70f5f40e98d96580e803526d19026224e31753368b",
+    "lang/TAHOT-Jos-Est.txt": "195fee1dc3653bab33701f170734eb894ed647c10cd08cc61749375fe8b73775",
+    "lang/TAHOT-Job-Sng.txt": "bb508af3af07822fca84cc43a0eba79eb70eecf672aabc0245b8d8cecf329d96",
+    "lang/TAHOT-Isa-Mal.txt": "f3ded203d2a74d6368932c97ae550d1d0754b271af491dc0dedf36fe3ba0bcc5",
+    "lang/TAGNT-Mat-Jhn.txt": "ab8eaaeb68e17a1dcfa34e1e9350358f22f03bc2a97244d848750ad81044bc8e",
+    "lang/TAGNT-Act-Rev.txt": "524e32375361e6d3fa2f7ef00b87605fdc4317a762f395651a05fdc31ad031b7",
+    "lang/TEHMC.txt": "78779bea824b31d4467dec0161d547481c86f266bc39def12cd11dc7dcbe6da7",
+    "lang/TEGMC.txt": "5f0416f7617019a6082285214903bde569a980d5fd3b88b8d7020d944e94de82"
+   }
+  },
+  {
+   "id": "oshb-lexicon",
+   "kind": "lexicon",
+   "name": "Open Scriptures Hebrew Lexicon (Brown-Driver-Briggs)",
+   "provider": "Open Scriptures Hebrew Bible Project",
+   "url": "https://github.com/openscriptures/HebrewLexicon",
+   "file": "BrownDriverBriggs.xml, LexicalIndex.xml",
+   "version": "git 21c9add13bc727d3a951361778e97e3ff7afd1ce",
+   "license": "CC BY 4.0 (markup); the text of Brown, Driver, Briggs (1906) is public domain",
+   "attribution": "Hebrew lexicon from the Open Scriptures Hebrew Bible Project (CC BY 4.0).",
+   "notes": "A work in progress: each entry is marked done (full BDB entry, 560 entries) or partly transcribed (basic definitions, with or without references). Partial entries are shown with that label. Strong's numbers that combine words BDB treats separately show every BDB entry. Arabic, Ethiopic, and Syriac words not transcribed in the source are marked as such. Changes: XML converted to a small HTML subset; references converted to app links (references beyond KJV verse numbering are shown as text).",
+   "sha256": {
+    "lang/BrownDriverBriggs.xml": "2b52658a4323d91674cda4090ab8b3ebddfff640f4f18143c28300e80b2c38f8",
+    "lang/LexicalIndex.xml": "8f7a605c58899d2f44430149c143c00903976e1e91232476677972a69e5bc85f"
+   }
+  },
+  {
    "id": "openbible-xrefs",
    "kind": "cross-references",
    "name": "OpenBible.info Cross References",

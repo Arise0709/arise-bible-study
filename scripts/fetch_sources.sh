@@ -19,4 +19,25 @@ mkdir -p translations
 for t in BSB NHEB ASV YLT Webster BBE Geneva1599; do
   curl -fsSL -o "translations/$t.json" "$GH/scrollmapper/bible_databases/59b18c5af5845728c275d5b7178ad0d024172b1f/formats/json/$t.json"
 done
+# Commentaries (Cycle 4): CrossWire OSIS editions, public domain; commits pinned, checksums in scripts/build_commentaries.py
+mkdir -p commentaries
+for rc in mhc:537591a94c991941877b47a06666b6a7812e05d8 mhcc:b15ff40aab9556005fd3d38d5388040a90b99145 jfb:9f7106f538fe6e154a58fc2689e069dc69cbcaba clarke:bd94d38ee503ef6759fbdf1ea85ed12f4b5a2d5e kd:206b2f6b60fec34f68dc537322cffc975756db31 scofield:e46fa4f9c523dcdfecd62c43fe402aab1cc96f22; do
+  r=${rc%%:*}; c=${rc##*:}
+  curl -fsSL -o "commentaries/$r.osis.xml" "$GL/$r/-/raw/$c/$r.osis.xml"
+  curl -fsSL -o "commentaries/$r.conf" "$GL/$r/-/raw/$c/$r.conf"
+done
+# Original languages (Cycle 4): STEPBible TAHOT/TAGNT + morphology code expansions (CC BY 4.0), Open Scriptures Hebrew Lexicon (CC BY 4.0)
+mkdir -p lang
+STEPC="$GH/STEPBible/STEPBible-Data/be4191f0082aeedddb0eff0c02c966292b2bd641"
+for f in "TAHOT Gen-Deu" "TAHOT Jos-Est" "TAHOT Job-Sng" "TAHOT Isa-Mal"; do
+  curl -fsSL -o "lang/${f// /-}.txt" "$STEPC/Translators%20Amalgamated%20OT%2BNT/${f// /%20}%20-%20Translators%20Amalgamated%20Hebrew%20OT%20-%20STEPBible.org%20CC%20BY.txt"
+done
+for f in "TAGNT Mat-Jhn" "TAGNT Act-Rev"; do
+  curl -fsSL -o "lang/${f// /-}.txt" "$STEPC/Translators%20Amalgamated%20OT%2BNT/${f// /%20}%20-%20Translators%20Amalgamated%20Greek%20NT%20-%20STEPBible.org%20CC-BY.txt"
+done
+curl -fsSL -o lang/TEHMC.txt "$STEPC/Morphology%20codes/TEHMC%20-%20Translators%20Expansion%20of%20Hebrew%20Morphology%20Codes%20-%20STEPBible.org%20CC%20BY.txt"
+curl -fsSL -o lang/TEGMC.txt "$STEPC/Morphology%20codes/TEGMC%20-%20Translators%20Expansion%20of%20Greek%20Morphhology%20Codes%20-%20STEPBible.org%20CC%20BY.txt"
+for f in BrownDriverBriggs.xml LexicalIndex.xml AugIndex.xml; do
+  curl -fsSL -o "lang/$f" "$GH/openscriptures/HebrewLexicon/21c9add13bc727d3a951361778e97e3ff7afd1ce/$f"
+done
 cd wn && npm pack wordnet-db@3.1.14 --silent && tar xzf wordnet-db-3.1.14.tgz

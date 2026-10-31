@@ -9,4 +9,6 @@ python3 scripts/build_reference.py
 python3 scripts/build_translations.py
 python3 scripts/build_meta.py
 node scripts/build_chapters.mjs
+python3 scripts/build_commentaries.py
+python3 scripts/build_original.py
 node scripts/build_search.mjs

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { X } from 'lucide-react'
 import { Reader } from '../components/Reader'
@@ -19,6 +19,8 @@ export function BiblePage() {
   // "16", "28-39", or "16,18": every verse listed is highlighted.
   // "1-2:3" runs into a later chapter: verses to the end of this chapter, then a link onward.
   const { data: index } = useAsync(loadBookIndex, [])
+  // set when a passage was opened from a cross-reference: offer the way back
+  const backTo = (useLocation().state as { from?: { book: string; chapter: number; verse?: number } } | null)?.from
   const cross = parseCrossSpec(params.verse)
   const lastVerse = index?.find((b) => b.id === book)?.chapters[chapter - 1]
   const verses = cross
@@ -40,7 +42,7 @@ export function BiblePage() {
   }, [book, chapter, spec, params.book, nav])
 
   const onNavigate = (b: string, c: number, v?: number) => nav(`/bible/${b}/${c}${v ? '/' + v : ''}`)
-  const reader = <Reader book={book} chapter={chapter} target={verse} targets={verses} continues={continues} onNavigate={onNavigate} />
+  const reader = <Reader book={book} chapter={chapter} target={verse} targets={verses} continues={continues} backTo={backTo} onNavigate={onNavigate} />
 
   if (wide) {
     return (
