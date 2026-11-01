@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { CloudOff, Download, RefreshCw, Trash2 } from 'lucide-react'
 import { applyUpdate, downloadBible, isDownloaded, offlineSupported, onUpdateState, removeBible, updateState, verifyDownloaded } from '../lib/offline'
 import { loadTranslationIndex } from '../lib/data'
 import { toast, useAsync } from './ui'
+
+// research packs load only when the offline settings are shown
+const ResearchPacks = lazy(() => import('./OfflinePacks').then((m) => ({ default: m.ResearchPacks })))
 
 function useOnline() {
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
@@ -119,6 +122,9 @@ export function OfflineSettings() {
           )
         })}
       </ul>
+      <Suspense fallback={null}>
+        <ResearchPacks />
+      </Suspense>
     </div>
   )
 }

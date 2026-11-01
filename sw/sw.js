@@ -69,6 +69,12 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.pathname.startsWith('/data/')) {
+    // The offline packs list, and files a pack update asks for fresh (cache: 'reload'), come from the network
+    // first, falling back to the stored copy when offline.
+    if (url.pathname === '/data/packs.json' || req.cache === 'reload') {
+      event.respondWith(fromNetwork(req, DATA).catch(async () => (await caches.match(req, { cacheName: DATA, ignoreVary: true })) || Response.error()))
+      return
+    }
     // stored copy first (works offline), refreshed in the background
     event.respondWith(
       (async () => {

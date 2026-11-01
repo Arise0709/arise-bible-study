@@ -1,3 +1,4 @@
+import { BOOK_BY_ID } from '../lib/refs'
 import { Fragment, type ReactNode } from 'react'
 import { baseStrong, loadOrigChapter, parseWord, plainXlit, segText, type Chapter, type OrigWord } from '../lib/data'
 import { useStudy } from '../lib/state'
@@ -27,7 +28,15 @@ export function InterlinearChapter({
   const { select, selection, setTool, setToolsOpen } = useStudy()
   const { data, error, loading } = useAsync(() => loadOrigChapter(book, chapter), [book, chapter])
   if (loading) return <Loading label="Loading the original text" />
-  if (error || !data) return <div className="notice warn">The tagged original-language text for this chapter could not be loaded.</div>
+  if (error || !data) {
+    const lang = BOOK_BY_ID[book]?.testament === 'OT' ? 'Hebrew' : 'Greek'
+    return (
+      <div className="notice warn" role="alert">
+        The {lang} text for this chapter could not be loaded.
+        {typeof navigator !== 'undefined' && !navigator.onLine ? ` You're offline: to use the interlinear without a connection, download "${lang} text of ${BOOK_BY_ID[book]?.name ?? book}" under Settings, Offline reading. Or switch the View to Reading.` : ' Check your connection and try again, or switch the View to Reading.'}
+      </div>
+    )
+  }
   const heb = data.l === 'H'
   const verses = [...(kjv.title && data.v['0'] ? [0] : []), ...kjv.verses.map((v) => v.v)]
 

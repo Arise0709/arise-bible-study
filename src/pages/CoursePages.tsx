@@ -28,6 +28,7 @@ import {
   type CourseImport,
 } from '../lib/courses'
 import { ProgressBar } from './PlanPages'
+import { SaveOffline } from '../components/OfflinePacks'
 
 const refText = (osis: string) => {
   const r = parseOsis(osis)
@@ -449,6 +450,13 @@ export function CoursePage() {
             </p>
           )}
         </section>
+      )}
+      {visible.length > 0 && (
+        <SaveOffline
+          id={`course:${course.id}`}
+          label={`Course: ${course.title}`}
+          refs={visible.flatMap((l) => [l.primaryRef, ...l.supportingRefs, ...l.blocks.flatMap((b) => (b.kind === 'scripture' ? [b.ref] : b.kind === 'xref' ? [b.to] : []))]).filter(Boolean)}
+        />
       )}
       {course.role === 'student' && (
         <div>

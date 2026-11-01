@@ -13,3 +13,4 @@ python3 scripts/build_commentaries.py
 node scripts/build_commentary_search.mjs
 python3 scripts/build_original.py
 node scripts/build_search.mjs
+node scripts/build_packs.mjs

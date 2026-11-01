@@ -5,6 +5,7 @@ import { CalendarDays, CheckCircle2, Circle, Download, Pause, Play, Plus, Rotate
 import { db, type PlanProgress, type ReadingPlan } from '../db/db'
 import { Dialog, Empty, Loading, Tabs, downloadBlob, slug, toast, useAsync } from '../components/ui'
 import { loadBookIndex, loadTranslationIndex } from '../lib/data'
+import { SaveOffline } from '../components/OfflinePacks'
 import {
   ALL_DAYS,
   DAY_NAMES,
@@ -498,6 +499,7 @@ export function PlanPage() {
             ))}
           </select>
         </label>
+        <SaveOffline id={`plan:${plan.id}`} label={`Reading plan: ${plan.title}`} refs={plan.sessions.flatMap((x) => x.refs)} translation={plan.translation} />
         <PlanNotes plan={plan} />
       </section>
 
