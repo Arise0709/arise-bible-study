@@ -11,7 +11,7 @@ export type Block =
   | { id: string; kind: 'word'; strongs: string; english: string; ref: string; original: string; gloss: string; note: string }
   | { id: string; kind: 'xref'; from: string; to: string; explanation: string }
   | { id: string; kind: 'note'; text: string; uncertain?: boolean } // the reader's own words
-  | { id: string; kind: 'ai'; text: string; citations: string[]; warnings: string[]; createdAt: number; sources?: AiSource[] } // labeled AI draft
+  | { id: string; kind: 'ai'; text: string; citations: string[]; warnings: string[]; createdAt: number; sources?: AiSource[]; reviewed?: boolean } // labeled AI draft; in lessons it must be reviewed before publishing
 
 /** A study resource an AI draft relied on, checked to be one the app gave it. */
 export interface AiSource {
@@ -193,7 +193,7 @@ export interface PlanProgress {
 }
 
 /** A content block in a lesson. Reuses the study blocks so Scripture, sources, AI drafts, and the author's words stay distinct. */
-export type LessonBlock = Block | { id: string; kind: 'text'; text: string } | { id: string; kind: 'video'; url: string; title: string } | { id: string; kind: 'file'; name: string; type: string; size: number; data: string }
+export type LessonBlock = Block | { id: string; kind: 'text'; text: string; heading?: boolean } | { id: string; kind: 'video'; url: string; title: string } | { id: string; kind: 'file'; name: string; type: string; size: number; data: string }
 
 export type QuestionType = 'choice' | 'truefalse' | 'blank' | 'reference' | 'short' | 'reflection' | 'matching'
 

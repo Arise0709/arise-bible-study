@@ -1483,3 +1483,70 @@ a.iconbtn {
   border-color: var(--accent);
   font-weight: 600;
 }
+.prewrap {
+  white-space: pre-wrap;
+}
+.lesson-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.lesson-nav {
+  position: sticky;
+  top: 8px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--ui-font);
+}
+.lesson {
+  min-width: 0;
+  line-height: 1.6;
+}
+.lesson h2 {
+  font-size: 1.2em;
+  margin: 12px 0 6px;
+}
+.block.lesson-text {
+  border-left: 4px solid var(--border);
+}
+.quiz-q {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0;
+}
+.quiz-q legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+.mobile-only {
+  display: none !important;
+}
+@media (max-width: 760px) {
+  .lesson-layout {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px 16px;
+  }
+  .lesson-nav {
+    position: static;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+  .mobile-only {
+    display: flex !important;
+  }
+}
+@media print {
+  .lesson-layout {
+    display: block;
+  }
+  .lesson-nav {
+    display: none;
+  }
+}

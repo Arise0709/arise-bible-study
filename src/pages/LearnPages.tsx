@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { PlansSection } from './PlanPages'
+import { CoursesSection, NextStep } from './CoursePages'
 
 /** The Learn area: reading plans now, courses alongside them. Loads only when opened. */
 export function LearnHome() {
@@ -12,7 +13,9 @@ export function LearnHome() {
       <p className="muted" style={{ margin: 0 }}>
         Read the Word, study it, and grow in it. Your plans and progress are saved in this browser and included in your backups.
       </p>
+      <NextStep />
       <PlansSection />
+      <CoursesSection />
     </div>
   )
 }

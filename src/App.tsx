@@ -27,6 +27,12 @@ const plans = () => import('./pages/PlanPages')
 const LearnHome = lazy(() => learn().then((m) => ({ default: m.LearnHome })))
 const NewPlanPage = lazy(() => plans().then((m) => ({ default: m.NewPlanPage })))
 const PlanPage = lazy(() => plans().then((m) => ({ default: m.PlanPage })))
+const coursePages = () => import('./pages/CoursePages')
+const builder = () => import('./pages/CourseBuilder')
+const CoursePage = lazy(() => coursePages().then((m) => ({ default: m.CoursePage })))
+const LessonPage = lazy(() => coursePages().then((m) => ({ default: m.LessonPage })))
+const CourseEditorPage = lazy(() => builder().then((m) => ({ default: m.CourseEditorPage })))
+const LessonEditorPage = lazy(() => builder().then((m) => ({ default: m.LessonEditorPage })))
 
 const NAV = [
   { to: '/bible', label: 'Bible', icon: BookOpen },
@@ -157,6 +163,10 @@ function Shell() {
           <Route path="/learn" element={<LearnHome />} />
           <Route path="/learn/plans/new" element={<NewPlanPage />} />
           <Route path="/learn/plans/:id" element={<PlanPage />} />
+          <Route path="/learn/courses/:id" element={<CoursePage />} />
+          <Route path="/learn/courses/:id/edit" element={<CourseEditorPage />} />
+          <Route path="/learn/courses/:id/lessons/:lessonId" element={<LessonPage />} />
+          <Route path="/learn/courses/:id/lessons/:lessonId/edit" element={<LessonEditorPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/sources" element={<SourcesPage />} />

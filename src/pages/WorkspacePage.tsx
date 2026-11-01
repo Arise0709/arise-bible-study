@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Group, Panel, Separator } from 'react-resizable-panels'
-import { BookOpen, Download, FileText, Mic, Plus, Trash2 } from 'lucide-react'
+import { BookOpen, Download, FileText, GraduationCap, Mic, Plus, Trash2 } from 'lucide-react'
 import { Reader } from '../components/Reader'
 import { ToolsPane } from '../components/ToolsPane'
 import { BlockLegend, BlockList, TranslationSelect, retranslateBlocks } from '../components/Blocks'
@@ -16,6 +16,9 @@ import { pdfExport, studyToDoc, toMarkdown, wordExport } from '../export/doc'
 import { createSermonFromStudy } from './sermonTemplates'
 import { guardedPut, useAutosave } from '../lib/autosave'
 import { ConflictBanner, useWatchRecord } from '../components/Conflict'
+
+// the course builder loads only if a lesson is made from a study
+const CreateLessonDialog = lazy(() => import('./CourseBuilder').then((m) => ({ default: m.CreateLessonDialog })))
 
 export function StudyStart() {
   const nav = useNavigate()
@@ -205,6 +208,7 @@ function Worksheet({ study, update, autosave, onGoToPassage }: { study: Study; u
   const [editPassage, setEditPassage] = useState(false)
   const [pq, setPq] = useState(passage ? formatRef(passage) : '')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [createLesson, setCreateLesson] = useState(false)
 
   const exportAs = async (kind: 'md' | 'docx' | 'pdf') => {
     try {
@@ -324,6 +328,9 @@ function Worksheet({ study, update, autosave, onGoToPassage }: { study: Study; u
           >
             <Mic size={15} /> Turn into sermon or lesson
           </button>
+          <button className="btn" onClick={() => setCreateLesson(true)}>
+            <GraduationCap size={15} /> Create course lesson
+          </button>
           <span className="spacer" />
           <button className="btn danger" onClick={() => setConfirmDelete(true)}>
             <Trash2 size={15} /> Delete study
@@ -333,6 +340,11 @@ function Worksheet({ study, update, autosave, onGoToPassage }: { study: Study; u
           <LinkedText text="Tip: references you type in notes, like Heb 11:1, link to the Bible reader automatically." />
         </p>
       </div>
+      {createLesson && (
+        <Suspense fallback={null}>
+          <CreateLessonDialog open onClose={() => setCreateLesson(false)} study={study} />
+        </Suspense>
+      )}
       <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete this study?">
         <p>“{study.title}” will be deleted from this browser. Sermons made from it are kept.</p>
         <div className="row">

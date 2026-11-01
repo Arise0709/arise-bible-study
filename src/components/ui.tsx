@@ -77,6 +77,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, label }: { tabs:
       {tabs.map((t) => (
         <button
           key={t.id}
+          type="button"
           role="tab"
           aria-selected={value === t.id}
           tabIndex={value === t.id ? 0 : -1}
