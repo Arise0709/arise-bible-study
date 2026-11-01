@@ -1186,6 +1186,43 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     await sc.close()
   }
 
+  console.log('23. Whole-Bible commentary search (Kaizen Cycle 5, Stage D)')
+  {
+    const c = await browser.newContext({ viewport: { width: 1440, height: 950 } })
+    const q = await c.newPage()
+    q.on('pageerror', (e) => errors.push(e.message))
+    const fetched = []
+    q.on('request', (r) => fetched.push(r.url()))
+    await q.goto(BASE + '/search?q=Nicodemus', { waitUntil: 'networkidle' })
+    check('Scripture search does not download the commentary index', !fetched.some((u) => /commentary\/search/.test(u)))
+    await q.getByTestId('also-commentaries').getByRole('link').click()
+    await q.getByTestId('commentary-results').waitFor()
+    const all = await q.getByTestId('commentary-results').innerText()
+    const n = +(all.match(/(\d+) commentary notes? found/) ?? [])[1]
+    check('searching every commentary finds notes, labeled as commentary (not Scripture)', n > 20 && /Commentary/.test(all) && /not Scripture/.test(await q.locator('main').innerText()), all.slice(0, 200))
+    check('only the index pieces needed were downloaded (not the whole library)', fetched.filter((u) => /commentary\/search\/w\//.test(u)).length <= 2)
+    await q.getByLabel('Commentary to search').selectOption('JFB')
+    await q.getByTestId('commentary-results').locator('li').first().waitFor()
+    const jfb = await q.getByTestId('commentary-results').innerText()
+    const nj = +(jfb.match(/(\d+) commentary notes? found/) ?? [])[1]
+    check('filtering to one commentary narrows the results', nj > 0 && nj < n && !/Adam Clarke on|Clarke on/.test(jfb))
+    await q.getByLabel('Notes on').selectOption('OT')
+    await q.getByTestId('commentary-results').locator('[role=status]').waitFor()
+    await q.waitForTimeout(300)
+    const ot = await q.getByTestId('commentary-results').innerText()
+    check('Old Testament filter keeps only Old Testament notes', !/ on (John|Matthew|Luke|Mark|Acts|Romans) /.test(ot))
+    await q.goto(BASE + '/search?in=commentaries&q=born%20again&mode=phrase', { waitUntil: 'networkidle' })
+    await q.getByTestId('commentary-results').locator('li').first().waitFor()
+    check('exact phrase results highlight the phrase', (await q.getByTestId('commentary-results').locator('mark').first().innerText()).toLowerCase() === 'born again')
+    const first = await q.getByTestId('commentary-results').locator('li button.reflink').first().innerText()
+    await q.getByTestId('commentary-results').locator('li button.reflink').first().click()
+    await q.waitForURL(/\/bible\//)
+    const work = first.split(' on ')[0]
+    await q.getByLabel('Commentary to show').waitFor()
+    check('a result opens the Bible at that verse with that commentary showing', /\/bible\/Gen\/1\/1$/.test(q.url()) && (await q.getByLabel('Commentary to show').locator('option:checked').innerText()) === work, first)
+    await c.close()
+  }
+
   check('no uncaught page errors', errors.length === 0, errors.join(' | '))
   check('nothing was blocked by the security policy anywhere in this run', cspViolations.length === 0, cspViolations.slice(0, 3).join(' | '))
   await browser.close()

@@ -5,7 +5,10 @@ import { describe, expect, it } from 'vitest'
 const DIR = path.join(__dirname, '..', 'public', 'data', 'commentary')
 const KJV = Object.fromEntries((JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'public', 'data', 'kjv', 'index.json'), 'utf8')) as { id: string; chapters: number[] }[]).map((b) => [b.id, b.chapters]))
 const index = JSON.parse(fs.readFileSync(path.join(DIR, 'index.json'), 'utf8'))
-const read = (id: string, book: string, f: string) => JSON.parse(fs.readFileSync(path.join(DIR, id, book, f), 'utf8'))
+const json = (p: string) => JSON.parse(fs.readFileSync(path.join(DIR, p), 'utf8'))
+// coverage and introductions are stored one file per book for all works (commentary/coverage/{Book}.json, commentary/intro/{Book}.json)
+const read = (id: string, book: string, f: string) =>
+  f === 'coverage.json' ? json(`coverage/${book}.json`)[id] : f === 'intro.json' ? { h: json(`intro/${book}.json`)[id] } : json(`${id}/${book}/${f}`)
 const text = (h: string) => h.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 const ALLOWED = new Set(['p', 'h4', 'i', 'b', 'sup', 'sub', 'u', 'span', 'a', 'ul', 'li', 'table', 'tr', 'td', 'br', 'small'])
 

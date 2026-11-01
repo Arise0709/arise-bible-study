@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Bookmark, Clock, Download, NotebookPen, Plus, Trash2 } from 'lucide-react'
@@ -16,6 +16,9 @@ import { db } from '../db/db'
 import { downloadBackup } from '../lib/dataSafety'
 import { DataProtectionStatus, RestoreBackup } from '../components/DataSafety'
 import { OfflineSettings } from '../components/Offline'
+
+// commentary search loads only when its tab is opened
+const CommentarySearchControls = lazy(() => import('../components/CommentarySearchView').then((m) => ({ default: m.CommentarySearchControls })))
 
 /* ================= Dictionary ================= */
 
@@ -244,6 +247,8 @@ export function SearchPage() {
   const whole = params.get('whole') !== '0'
   const tr = params.get('t') ?? 'KJV'
   const forms = params.get('forms') === '1'
+  const where = params.get('in') === 'commentaries' ? 'commentaries' : 'bible'
+  const works = params.get('w') ? [params.get('w')!] : []
   const isPhrase = mode === 'phrase' || /^\s*".+"\s*$/.test(q)
   const [input, setInput] = useState(q)
   const [progress, setProgress] = useState<string>('')
@@ -256,7 +261,7 @@ export function SearchPage() {
   useEffect(() => setInput(q), [q])
 
   useEffect(() => {
-    if (!q.trim()) return
+    if (!q.trim() || where === 'commentaries') return
     // References and Strong's numbers jump straight to their pages
     const r = parseRef(q)
     if (r) {
@@ -285,7 +290,7 @@ export function SearchPage() {
       alive = false
       onSearchProgress(null)
     }
-  }, [q, scope, mode, whole, limit, tr, forms, isPhrase, nav])
+  }, [q, scope, mode, whole, limit, tr, forms, isPhrase, nav, where])
 
   const set = (k: string, v: string) => {
     const p = new URLSearchParams(params)
@@ -295,7 +300,21 @@ export function SearchPage() {
   const added = res?.formsUsed.flat() ?? []
   return (
     <div className="page stack">
-      <h1>Search the Bible</h1>
+      <h1>{where === 'bible' ? 'Search the Bible' : 'Search the commentaries'}</h1>
+      <Tabs
+        label="What to search"
+        value={where}
+        onChange={(v) => {
+          const p = new URLSearchParams(params)
+          if (v === 'bible') p.delete('in')
+          else p.set('in', v)
+          setParams(p)
+        }}
+        tabs={[
+          { id: 'bible', label: 'Scripture' },
+          { id: 'commentaries', label: 'Commentaries' },
+        ]}
+      />
       <form
         className="row"
         onSubmit={(e) => {
@@ -303,9 +322,16 @@ export function SearchPage() {
           set('q', input)
         }}
       >
-        <input type="search" value={input} onChange={(e) => setInput(e.target.value)} placeholder='Word, phrase in "quotes", reference (Rom 8:28), or Strong&apos;s number (G26)' style={{ flex: 1, minWidth: 220 }} aria-label="Search" autoFocus={!q} />
+        <input type="search" value={input} onChange={(e) => setInput(e.target.value)} placeholder={where === 'bible' ? 'Word, phrase in "quotes", reference (Rom 8:28), or Strong\'s number (G26)' : 'A word or phrase in the commentaries, e.g. new birth'} style={{ flex: 1, minWidth: 220 }} aria-label="Search" autoFocus={!q} />
         <button className="btn primary">Search</button>
       </form>
+      {where === 'commentaries' && (
+        <Suspense fallback={<Loading />}>
+          <CommentarySearchControls q={q} mode={mode} scope={scope} works={works} set={set} />
+        </Suspense>
+      )}
+      {where === 'bible' && (
+      <>
       <div className="row small" style={{ flexWrap: 'wrap' }}>
         <label>
           Translation{' '}
@@ -387,7 +413,14 @@ export function SearchPage() {
               Text: {trInfo.name} ({trInfo.year}), {trInfo.license}. <Link to="/sources">Sources and licenses</Link>
             </p>
           )}
+          {q && (
+            <p className="small" style={{ margin: 0 }} data-testid="also-commentaries">
+              <Link to={`/search?in=commentaries&q=${encodeURIComponent(q)}&mode=${mode}${scope !== 'all' ? `&scope=${scope}` : ''}`}>Search the commentaries for “{q}”</Link>
+            </p>
+          )}
         </>
+      )}
+      </>
       )}
     </div>
   )

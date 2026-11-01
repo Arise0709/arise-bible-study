@@ -2,9 +2,9 @@
 
 Input:  data-src/commentaries/{id}.osis.xml  (see scripts/fetch_sources.sh)
 Output: public/data/commentary/index.json                     works, sources, rights, coverage summary
-        public/data/commentary/{ID}/{Book}/coverage.json       which chapters/verses each work covers
+        public/data/commentary/coverage/{Book}.json            which chapters/verses each work covers, all works in one file
         public/data/commentary/{ID}/{Book}/{chapter}.json      the commentary text for one chapter
-        public/data/commentary/{ID}/{Book}/intro.json          the work's introduction to the book, if any
+        public/data/commentary/intro/{Book}.json               each work's introduction to the book, all works in one file
 
 Faithfulness rules
 - Text is the module's own text. Markup is converted to a small, fixed set of HTML tags; nothing is added
@@ -280,6 +280,11 @@ def chapter1_split(h):
     return None, h
 
 
+# coverage and introductions for every work, written one file per book (keeps the deployment's file count down)
+BOOK_COVERAGE = {}
+BOOK_INTRO = {}
+
+
 def build(work, report):
     path = os.path.join(SRC, work["file"] + ".osis.xml")
     sha = hashlib.sha256(open(path, "rb").read()).hexdigest()
@@ -351,8 +356,8 @@ def build(work, report):
             json.dump({"c": ch["c"], "e": ch["e"]}, open(os.path.join(wdir, b, f"{c}.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
             cov["chapters"][c] = {"overview": bool(ch["c"]), "ranges": [[x[0], x[1]] for x in ch["e"]]}
         if book["intro"]:
-            json.dump({"h": "".join(book["intro"])}, open(os.path.join(wdir, b, "intro.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
-        json.dump(cov, open(os.path.join(wdir, b, "coverage.json"), "w", encoding="utf-8"), separators=(",", ":"))
+            BOOK_INTRO.setdefault(b, {})[work["id"]] = "".join(book["intro"])
+        BOOK_COVERAGE.setdefault(b, {})[work["id"]] = cov
         coverage_summary[b] = len(cov["chapters"])
     return sha, stats, coverage_summary
 
@@ -382,6 +387,10 @@ def main():
             "books": len(cov), "chapters": sum(cov.values()), "stats": stats,
         })
         print(w["id"], stats, "books", len(cov))
+    for name, data in (("coverage", BOOK_COVERAGE), ("intro", BOOK_INTRO)):
+        os.makedirs(os.path.join(OUT, name), exist_ok=True)
+        for b, per_work in data.items():
+            json.dump(per_work, open(os.path.join(OUT, name, f"{b}.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     json.dump({"works": works, "notIncluded": NOT_INCLUDED}, open(os.path.join(OUT, "index.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     # every introduction split and numbering fix, for review (not loaded by the app)
     json.dump({"report": report}, open(os.path.join(OUT, "build-report.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)

@@ -375,16 +375,23 @@ export interface CommentaryChapter {
 }
 
 export const loadCommentaryIndex = () => getJson<CommentaryIndex>('commentary/index.json', 'the commentary list')
-/** Which chapters and verses a commentary covers in a book; null when it has nothing on that book. */
-export function loadCommentaryCoverage(id: string, book: string): Promise<CommentaryCoverage | null> {
-  return getJson<CommentaryCoverage>(`commentary/${id}/${book}/coverage.json`, `the ${id} coverage of ${book}`).catch((e) => {
+/** Which chapters and verses a commentary covers in a book; null when it has nothing on that book.
+ *  One file per book holds every commentary's coverage, so all six load with one request. */
+export async function loadCommentaryCoverage(id: string, book: string): Promise<CommentaryCoverage | null> {
+  const all = await getJson<Record<string, CommentaryCoverage>>(`commentary/coverage/${book}.json`, `the commentary coverage of ${book}`).catch((e) => {
     if (e instanceof DataError && /404|missing from this deployment/.test(e.message)) return null
     throw e
   })
+  return all?.[id] ?? null
 }
 export const loadCommentaryChapter = (id: string, book: string, chapter: number) =>
   getJson<CommentaryChapter>(`commentary/${id}/${book}/${chapter}.json`, `the ${id} commentary on ${book} ${chapter}`)
-export const loadCommentaryIntro = (id: string, book: string) => getJson<{ h: string }>(`commentary/${id}/${book}/intro.json`, `the ${id} introduction to ${book}`)
+/** A commentary's introduction to a book (one file per book holds every commentary's introduction). */
+export async function loadCommentaryIntro(id: string, book: string): Promise<{ h: string }> {
+  const all = await getJson<Record<string, string>>(`commentary/intro/${book}.json`, `the commentary introductions to ${book}`)
+  if (all[id] === undefined) throw new DataError(`the ${id} introduction to ${book}`, 'This commentary has no introduction to this book.')
+  return { h: all[id] }
+}
 
 /* ---------------- Original languages (STEPBible TAHOT/TAGNT, CC BY 4.0; BDB via Open Scriptures) ---------------- */
 

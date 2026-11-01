@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { BookOpenText, Info, Plus, Search, StickyNote } from 'lucide-react'
 import {
   loadCommentaryChapter,
@@ -13,6 +13,7 @@ import { BOOK_BY_ID, formatRef, parseOsis, refPath } from '../lib/refs'
 import { useStudy, useStudySink } from '../lib/state'
 import { uid } from '../db/db'
 import { Empty, ErrorBox, Loading, toast, useAsync } from './ui'
+import { CommentaryResultsList } from './CommentarySearchView'
 
 const plain = (h: string) => {
   const d = document.createElement('div')
@@ -152,40 +153,10 @@ function CommentaryColumn({ work, book, chapter, verse }: { work: CommentaryWork
   )
 }
 
-/** Search one commentary within a book (downloads that book's chapters on demand). */
+/** Search one commentary within a book, using the whole-library index (same results as the Search page). */
 function CommentarySearch({ work, book }: { work: CommentaryWork; book: string }) {
-  const { setFocusVerse } = useStudy()
-  const nav = useNavigate()
   const [q, setQ] = useState('')
   const [run, setRun] = useState('')
-  const [state, setState] = useState<{ done: number; total: number; hits: { c: number; s: number; e: number; snip: string }[] } | null>(null)
-  useEffect(() => {
-    if (run.trim().length < 3) return
-    let alive = true
-    ;(async () => {
-      const cov = await loadCommentaryCoverage(work.id, book)
-      const chapters = Object.keys(cov?.chapters ?? {}).map(Number)
-      const needle = run.trim().toLowerCase()
-      const hits: { c: number; s: number; e: number; snip: string }[] = []
-      let done = 0
-      setState({ done, total: chapters.length, hits })
-      await Promise.all(
-        chapters.map(async (c) => {
-          const ch = await loadCommentaryChapter(work.id, book, c).catch(() => null)
-          for (const [s, e, h] of ch?.e ?? []) {
-            const t = plain(h)
-            const i = t.toLowerCase().indexOf(needle)
-            if (i >= 0) hits.push({ c, s, e, snip: (i > 60 ? '…' : '') + t.slice(Math.max(0, i - 60), i + needle.length + 80) + '…' })
-          }
-          done++
-          if (alive) setState({ done, total: chapters.length, hits: [...hits].sort((a, b) => a.c - b.c || a.s - b.s) })
-        }),
-      )
-    })()
-    return () => {
-      alive = false
-    }
-  }, [run, work.id, book])
   return (
     <details className="commentary-block">
       <summary>
@@ -201,27 +172,14 @@ function CommentarySearch({ work, book }: { work: CommentaryWork; book: string }
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="A word or phrase" aria-label={`Search ${work.short}`} style={{ flex: 1, minWidth: 0 }} />
         <button className="btn sm">Search</button>
       </form>
-      {state && (
-        <div className="small muted" role="status">
-          {state.done < state.total ? `Searching… ${state.done} of ${state.total} chapters` : `${state.hits.length} note${state.hits.length === 1 ? '' : 's'} found`}
-        </div>
+      {run.trim() && (
+        <>
+          <CommentaryResultsList q={{ query: run, mode: /\s/.test(run.trim()) ? 'phrase' : 'all', works: [work.id], scope: book }} compact pageSize={30} />
+          <Link className="small" to={`/search?in=commentaries&q=${encodeURIComponent(run)}`}>
+            Search all commentaries across the whole Bible
+          </Link>
+        </>
       )}
-      <ul className="list small">
-        {state?.hits.slice(0, 60).map((h) => (
-          <li key={`${h.c}-${h.s}-${h.e}`}>
-            <button
-              className="reflink"
-              onClick={() => {
-                setFocusVerse({ book, chapter: h.c, verse: h.s })
-                nav(refPath({ book, chapter: h.c, verse: h.s }))
-              }}
-            >
-              {rangeLabel(book, h.c, h.s, h.e)}
-            </button>{' '}
-            <span className="muted">{h.snip}</span>
-          </li>
-        ))}
-      </ul>
     </details>
   )
 }
