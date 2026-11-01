@@ -34,6 +34,15 @@ const VALID: Record<Table, (r: Row) => boolean> = {
   folders: (r) => id(r) && str(r.name) && (r.kind === 'sermon' || r.kind === 'study'),
   settings: (r) => str(r.key) && !DEVICE_ONLY_SETTINGS.has(r.key as string),
   sessions: (r) => id(r) && str(r.path) && num(r.at),
+  plans: (r) => id(r) && str(r.title) && arr(r.sessions) && (r.sessions as Row[]).every((x) => x && str(x.id) && arr(x.refs)) && arr(r.days) && str(r.startDate) && str(r.anchorDate) && num(r.anchorIndex) && num(r.pace) && (r.pace as number) > 0 && num(r.run),
+  planProgress: (r) => id(r) && str(r.planId) && str(r.sessionId) && num(r.run) && num(r.completedAt),
+  courses: (r) => id(r) && str(r.title) && arr(r.units) && (r.units as Row[]).every((u) => u && str(u.id) && arr(u.lessonIds)) && (r.status === 'draft' || r.status === 'published' || r.status === 'archived'),
+  lessons: (r) => id(r) && str(r.courseId) && str(r.title) && arr(r.blocks),
+  courseVersions: (r) => id(r) && str(r.courseId) && num(r.version) && !!r.course && typeof r.course === 'object' && arr(r.lessons),
+  enrollments: (r) => id(r) && str(r.courseId) && !!r.lessonsDone && typeof r.lessonsDone === 'object',
+  attempts: (r) => id(r) && str(r.courseId) && str(r.lessonId) && str(r.quizId) && !!r.answers && typeof r.answers === 'object',
+  submissions: (r) => id(r) && str(r.courseId) && str(r.lessonId) && str(r.text),
+  attendance: (r) => id(r) && str(r.courseId) && str(r.date) && str(r.name) && typeof r.present === 'boolean',
 }
 
 export const TABLE_LABELS: Record<Table, string> = {
@@ -46,6 +55,15 @@ export const TABLE_LABELS: Record<Table, string> = {
   dict: 'My dictionary entries',
   settings: 'Settings',
   sessions: 'Recent places',
+  plans: 'Reading plans',
+  planProgress: 'Reading plan progress',
+  courses: 'Courses',
+  lessons: 'Lessons',
+  courseVersions: 'Course versions',
+  enrollments: 'Course enrollments',
+  attempts: 'Quiz attempts',
+  submissions: 'Reflections and written answers',
+  attendance: 'Attendance records',
 }
 
 export interface BackupPreview {
@@ -53,6 +71,8 @@ export interface BackupPreview {
   version: number
   tables: { table: Table; valid: number; skipped: number }[]
   rows: Record<Table, Row[]>
+  /** sections the backup actually contains; a backup made before a section existed never clears it */
+  present: Table[]
   skippedTotal: number
   warnings: string[]
 }
@@ -78,9 +98,11 @@ export function parseBackup(text: string): BackupPreview {
   if (unknown.length) warnings.push(`Ignored unknown sections: ${unknown.join(', ')}.`)
   const rows = {} as Record<Table, Row[]>
   const tables: BackupPreview['tables'] = []
+  const present: Table[] = []
   let skippedTotal = 0
   for (const t of TABLES) {
     const list = data[t]
+    if (Array.isArray(list)) present.push(t)
     if (list !== undefined && !Array.isArray(list)) warnings.push(`${TABLE_LABELS[t]} were not in the expected form and were skipped.`)
     const all = Array.isArray(list) ? list : []
     const good = all.filter((r): r is Row => !!r && typeof r === 'object' && VALID[t](r as Row))
@@ -92,7 +114,7 @@ export function parseBackup(text: string): BackupPreview {
     tables.push({ table: t, valid: good.length, skipped })
   }
   if (skippedTotal) warnings.push(`${skippedTotal} damaged or incomplete item${skippedTotal === 1 ? '' : 's'} will be skipped.`)
-  return { exportedAt: typeof parsed.exportedAt === 'string' ? parsed.exportedAt : null, version, tables, rows, skippedTotal, warnings }
+  return { exportedAt: typeof parsed.exportedAt === 'string' ? parsed.exportedAt : null, version, tables, rows, present, skippedTotal, warnings }
 }
 
 export async function currentCounts(): Promise<Record<Table, number>> {
@@ -114,6 +136,7 @@ export interface RestoreResult {
  *   a highlight or bookmark on a verse that already has one keeps the current one.
  * - replace: removes current notes, highlights, bookmarks, studies, sermons, folders, dictionary
  *   entries, settings and recent places, then restores the backup. Device-only settings are kept.
+ *   Reading plans and learning records are replaced only when the backup contains them.
  */
 export async function applyBackup(preview: BackupPreview, mode: 'merge' | 'replace'): Promise<RestoreResult> {
   const result: RestoreResult = { added: 0, updated: 0, kept: 0, removed: 0 }
@@ -122,6 +145,8 @@ export async function applyBackup(preview: BackupPreview, mode: 'merge' | 'repla
       const table = db.table(t)
       const incoming = preview.rows[t]
       if (mode === 'replace') {
+        // A backup made before reading plans and courses existed has no such sections: keep what is here.
+        if (!(preview.present ?? TABLES).includes(t)) continue
         if (t === 'settings') {
           const keys = (await table.toArray()).map((s: Row) => s.key as string).filter((k) => !DEVICE_ONLY_SETTINGS.has(k))
           result.removed += keys.length
@@ -147,7 +172,7 @@ export async function applyBackup(preview: BackupPreview, mode: 'merge' | 'repla
           result.added++
         } else if (num(row.updatedAt) && num(existing.updatedAt) && (row.updatedAt as number) <= (existing.updatedAt as number)) {
           result.kept++
-        } else if (t === 'settings' || t === 'sessions' || t === 'folders' || t === 'highlights' || t === 'bookmarks') {
+        } else if (t === 'settings' || t === 'sessions' || t === 'folders' || t === 'highlights' || t === 'bookmarks' || t === 'courseVersions') {
           result.kept++ // same item already here; nothing newer to compare, keep current
         } else {
           await table.put(row)

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, Suspense, lazy } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, Suspense, lazy, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate } from 'react-router-dom'
 import { Bookmark, BookOpen, ChevronLeft, ChevronRight, Copy, Highlighter, Link2, NotebookPen, Plus, StickyNote, X } from 'lucide-react'
@@ -26,9 +26,11 @@ interface Props {
   continues?: { chapter: number; spec: string; toChapter: number; toVerse: number }
   /** the passage a cross-reference was opened from */
   backTo?: { book: string; chapter: number; verse?: number }
+  /** shown at the top of the chapter, e.g. the reading plan bar */
+  banner?: ReactNode
 }
 
-export function Reader({ book, chapter, target, onNavigate, inPanel, targets, continues, backTo }: Props) {
+export function Reader({ book, chapter, target, onNavigate, inPanel, targets, continues, backTo, banner }: Props) {
   const { data: index } = useAsync(loadBookIndex, [])
   // The chapter's own small file, not the whole book. Chapter numbers past the end are caught below.
   const bookEntry = index?.find((b) => b.id === book)
@@ -371,6 +373,7 @@ export function Reader({ book, chapter, target, onNavigate, inPanel, targets, co
           <p className="sr-only" id={`rove-help-${inPanel ? 'p' : 'm'}`}>
             Use the up and down arrow keys to move between verses, and left and right to move word by word. Press Enter to select.
           </p>
+          {banner}
           {backTo && (backTo.book !== book || backTo.chapter !== chapter) && (
             <p className="no-print" style={{ fontFamily: 'var(--ui-font)', fontSize: 'calc(var(--ui-size) * 0.9)', margin: '0 0 8px' }}>
               <Link to={refPath(backTo)} data-testid="back-to">

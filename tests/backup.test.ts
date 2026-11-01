@@ -96,6 +96,7 @@ describe('backup restore', () => {
     const p = parseBackup(file({ notes: [note('n2', 'x', 1)] }))
     // sabotage one row after validation so the write fails mid-transaction
     p.rows.studies = [{ id: undefined } as unknown as Record<string, unknown>]
+    p.present.push('studies')
     await expect(applyBackup(p, 'replace')).rejects.toBeTruthy()
     expect((await db.notes.get('keep'))?.text).toBe('precious')
     expect(await db.notes.get('n2')).toBeUndefined()

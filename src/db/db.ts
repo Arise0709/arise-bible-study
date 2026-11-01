@@ -144,6 +144,193 @@ export interface SessionEntry {
   at: number
 }
 
+/* ---------- Reading plans and learning (added in database version 2) ----------
+ * Every record carries an id and timestamps, and leaves room for an owner, so a future
+ * account and sync system can adopt these records without converting them.
+ */
+
+/** One sitting of a reading plan: one or more passages, as OSIS ids (e.g. "Gen.1-Gen.3", "Ps.119.1-Ps.119.48"). */
+export interface PlanSession {
+  id: string
+  refs: string[]
+}
+
+export interface ReadingPlan {
+  id: string
+  title: string
+  description: string
+  kind: 'builtin' | 'custom'
+  templateId?: string // which built-in plan it was started from
+  editorial?: boolean // passages chosen by the app's editors (not a published plan)
+  sessions: PlanSession[]
+  translation?: string // preferred translation for this plan
+  days: number[] // reading weekdays, 0 = Sunday
+  startDate: string // YYYY-MM-DD
+  targetDate?: string // the reader's chosen finish date, if any
+  pace: number // sessions per reading day (can be below 1)
+  anchorDate: string // schedule is counted from this day...
+  anchorIndex: number // ...starting with this session
+  status: 'active' | 'paused' | 'completed'
+  pausedOn?: string
+  run: number // 1 for the first time through; restarting adds 1 and keeps earlier records
+  reflection: string[] // optional questions shown after each reading
+  notes: string
+  remind: boolean // show today's reading in the app
+  reflections?: Record<string, { text: string; at: number }> // "run:sessionId" -> the reader's reflection (kept even if a reading is unmarked)
+  completedAt?: number
+  ownerId?: string // reserved for future accounts
+  createdAt: number
+  updatedAt: number
+}
+
+export interface PlanProgress {
+  id: string
+  planId: string
+  sessionId: string
+  run: number
+  completedAt: number
+  updatedAt: number
+}
+
+/** A content block in a lesson. Reuses the study blocks so Scripture, sources, AI drafts, and the author's words stay distinct. */
+export type LessonBlock = Block | { id: string; kind: 'text'; text: string } | { id: string; kind: 'video'; url: string; title: string } | { id: string; kind: 'file'; name: string; type: string; size: number; data: string }
+
+export type QuestionType = 'choice' | 'truefalse' | 'blank' | 'reference' | 'short' | 'reflection' | 'matching'
+
+export interface Question {
+  id: string
+  type: QuestionType
+  prompt: string
+  options?: string[] // choice
+  answer?: string | number | boolean | string[] // index for choice, boolean for truefalse, accepted answers for blank, OSIS for reference
+  pairs?: [string, string][] // matching
+  refs: string[] // Scripture the question is based on (OSIS)
+  explanation: string
+  aiDraft?: boolean // drafted by AI: must be reviewed before publishing
+  reviewed?: boolean
+}
+
+export interface Quiz {
+  id: string
+  title: string
+  questions: Question[]
+  passScore: number // percent of auto-graded points
+  attempts: number // 0 = unlimited
+  shuffle: boolean
+  timeLimit: number // minutes, 0 = none
+  required: boolean
+  showAnswers: 'never' | 'after-submit' | 'after-pass'
+  allowRetake: boolean
+}
+
+export interface Lesson {
+  id: string
+  courseId: string
+  title: string
+  intro: string
+  objectives: string[]
+  primaryRef: string // OSIS
+  supportingRefs: string[]
+  blocks: LessonBlock[] // lesson content
+  context: string // historical and biblical context
+  discussion: string[]
+  reflection: string[]
+  assignments: string[]
+  summary: string
+  instructorNotes: string // shown only in the instructor view
+  quiz?: Quiz
+  status: 'draft' | 'published' | 'archived'
+  releaseOn?: string // YYYY-MM-DD: unlocks on this device from that date
+  updatedAt: number
+  createdAt: number
+}
+
+export interface CourseUnit {
+  id: string
+  title: string
+  lessonIds: string[]
+}
+
+export interface Course {
+  id: string
+  title: string
+  description: string
+  objectives: string[]
+  category: string // e.g. Foundations, Spiritual Maturity, Leadership and Ministry
+  level: 'beginner' | 'intermediate' | 'advanced'
+  duration: string
+  perspective: string // the author's theological perspective, stated by the author
+  author: string
+  organization: string
+  units: CourseUnit[]
+  completion: { lessons: boolean; quizzes: boolean; attendance: number } // attendance: sessions required (0 = not tracked)
+  certificate: { enabled: boolean; instructor: string }
+  status: 'draft' | 'published' | 'archived'
+  version: number // increases with each publish
+  origin: 'authored' | 'imported'
+  role: 'instructor' | 'student' // authored here, or imported to take
+  ownerId?: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** A frozen copy of a course at publish time, for version history and course files. */
+export interface CourseVersion {
+  id: string
+  courseId: string
+  version: number
+  publishedAt: number
+  course: Course
+  lessons: Lesson[]
+}
+
+export interface Enrollment {
+  id: string
+  courseId: string
+  version: number
+  studentName: string
+  enrolledAt: number
+  lessonsDone: Record<string, number> // lessonId -> completed at
+  lastLessonId?: string
+  completedAt?: number
+  certificateAt?: number
+  updatedAt: number
+}
+
+export interface Attempt {
+  id: string
+  courseId: string
+  lessonId: string
+  quizId: string
+  startedAt: number
+  submittedAt?: number
+  answers: Record<string, unknown>
+  score?: number // percent of auto-graded points
+  passed?: boolean
+  updatedAt: number
+}
+
+/** A student's reflection or written answer (never auto-graded). */
+export interface Submission {
+  id: string
+  courseId: string
+  lessonId: string
+  prompt: string
+  text: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** Attendance recorded by an instructor on their own device. */
+export interface Attendance {
+  id: string
+  courseId: string
+  date: string
+  name: string
+  present: boolean
+  updatedAt: number
+}
+
 class StudyDB extends Dexie {
   highlights!: EntityTable<Highlight, 'id'>
   bookmarks!: EntityTable<Bookmark, 'id'>
@@ -154,6 +341,15 @@ class StudyDB extends Dexie {
   folders!: EntityTable<Folder, 'id'>
   settings!: EntityTable<Setting, 'key'>
   sessions!: EntityTable<SessionEntry, 'id'>
+  plans!: EntityTable<ReadingPlan, 'id'>
+  planProgress!: EntityTable<PlanProgress, 'id'>
+  courses!: EntityTable<Course, 'id'>
+  lessons!: EntityTable<Lesson, 'id'>
+  courseVersions!: EntityTable<CourseVersion, 'id'>
+  enrollments!: EntityTable<Enrollment, 'id'>
+  attempts!: EntityTable<Attempt, 'id'>
+  submissions!: EntityTable<Submission, 'id'>
+  attendance!: EntityTable<Attendance, 'id'>
 
   constructor() {
     super('arise-bible-study')
@@ -168,12 +364,25 @@ class StudyDB extends Dexie {
       settings: 'key',
       sessions: 'id, at, kind',
     })
+    // Version 2 only adds tables. The version 1 tables and their data are not touched.
+    this.version(2).stores({
+      plans: 'id, status, updatedAt',
+      planProgress: 'id, planId, [planId+run], completedAt',
+      courses: 'id, status, updatedAt',
+      lessons: 'id, courseId, updatedAt',
+      courseVersions: 'id, courseId',
+      enrollments: 'id, &courseId, updatedAt',
+      attempts: 'id, courseId, lessonId',
+      submissions: 'id, courseId, lessonId',
+      attendance: 'id, courseId, date',
+    })
   }
 }
 
 export const db = new StudyDB()
 
-export const TABLES = ['highlights', 'bookmarks', 'notes', 'dict', 'studies', 'sermons', 'folders', 'settings', 'sessions'] as const
+export const LEARNING_TABLES = ['plans', 'planProgress', 'courses', 'lessons', 'courseVersions', 'enrollments', 'attempts', 'submissions', 'attendance'] as const
+export const TABLES = ['highlights', 'bookmarks', 'notes', 'dict', 'studies', 'sermons', 'folders', 'settings', 'sessions', ...LEARNING_TABLES] as const
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
   const s = await db.settings.get(key)

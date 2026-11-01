@@ -212,7 +212,7 @@ export function RestoreBackup() {
                     <tr key={t.table} style={{ borderTop: '1px solid var(--border)' }}>
                       <td style={{ padding: '4px 0' }}>{TABLE_LABELS[t.table]}</td>
                       <td>
-                        {t.valid}
+                        {preview.present.includes(t.table) ? t.valid : <span className="muted">Not in this backup (kept as is)</span>}
                         {t.skipped > 0 && <span style={{ color: 'var(--danger)' }}> ({t.skipped} skipped)</span>}
                       </td>
                       <td>{current[t.table]}</td>

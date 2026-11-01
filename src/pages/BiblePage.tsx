@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Suspense, lazy, useEffect, useState } from 'react'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { X } from 'lucide-react'
 import { Reader } from '../components/Reader'
@@ -9,7 +9,11 @@ import { BOOK_BY_ID, parseCrossSpec, parseVerseSpec, resolveBook } from '../lib/
 import { loadBookIndex } from '../lib/data'
 import { useAsync } from '../components/ui'
 import { useStudy } from '../lib/state'
-import { recordSession } from '../db/db'
+import { db, recordSession } from '../db/db'
+
+// Reading-plan pieces load only when a plan is in use, so plain Bible reading stays as light as before.
+const PlanBar = lazy(() => import('./PlanPages').then((m) => ({ default: m.PlanBar })))
+const TodaysReadingLine = lazy(() => import('./PlanPages').then((m) => ({ default: m.TodaysReadingLine })))
 
 export function BiblePage() {
   const params = useParams()
@@ -41,8 +45,33 @@ export function BiblePage() {
     document.title = `${BOOK_BY_ID[book].name} ${chapter} · Arise Bible Study`
   }, [book, chapter, spec, params.book, nav])
 
+  const [sp] = useSearchParams()
+  const planId = sp.get('plan')
+  const sessionId = sp.get('s')
+  // only look for "today's reading" when a plan asks to be shown
+  const [hasReminders, setHasReminders] = useState(false)
+  useEffect(() => {
+    if (planId) return
+    db.plans
+      .where('status')
+      .equals('active')
+      .filter((p) => p.remind)
+      .count()
+      .then((n) => setHasReminders(n > 0))
+      .catch(() => setHasReminders(false))
+  }, [planId])
+  const banner = planId && sessionId ? (
+    <Suspense fallback={null}>
+      <PlanBar planId={planId} sessionId={sessionId} book={book} chapter={chapter} />
+    </Suspense>
+  ) : hasReminders ? (
+    <Suspense fallback={null}>
+      <TodaysReadingLine />
+    </Suspense>
+  ) : null
+
   const onNavigate = (b: string, c: number, v?: number) => nav(`/bible/${b}/${c}${v ? '/' + v : ''}`)
-  const reader = <Reader book={book} chapter={chapter} target={verse} targets={verses} continues={continues} backTo={backTo} onNavigate={onNavigate} />
+  const reader = <Reader book={book} chapter={chapter} target={verse} targets={verses} continues={continues} backTo={backTo} onNavigate={onNavigate} banner={banner} />
 
   if (wide) {
     return (

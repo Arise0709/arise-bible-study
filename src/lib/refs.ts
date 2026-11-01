@@ -176,6 +176,10 @@ export function parseOsis(osis: string): Ref | undefined {
     if (pb.length === 3) {
       if (parseInt(pb[1], 10) !== ref.chapter) ref.endChapter = parseInt(pb[1], 10)
       ref.endVerse = parseInt(pb[2], 10)
+    } else if (pb.length === 2 && ref.verse === undefined) {
+      // whole chapters: "Gen.1-Gen.3"
+      const ec = parseInt(pb[1], 10)
+      if (ec !== ref.chapter) ref.endChapter = ec
     } else if (pb.length === 1) {
       ref.endVerse = parseInt(pb[0], 10)
     }

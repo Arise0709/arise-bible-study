@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { BookOpen, BookA, Columns3, HelpCircle, Library, Mic, Search, Settings as SettingsIcon } from 'lucide-react'
+import { BookOpen, BookA, Columns3, GraduationCap, HelpCircle, Library, Mic, Search, Settings as SettingsIcon } from 'lucide-react'
 import { StudyProvider } from './lib/state'
 import { db } from './db/db'
 import { loadBookIndex } from './lib/data'
@@ -21,11 +21,18 @@ const WorkspacePage = lazy(() => workspace().then((m) => ({ default: m.Workspace
 const SermonsPage = lazy(() => sermons().then((m) => ({ default: m.SermonsPage })))
 const SermonEditorPage = lazy(() => sermons().then((m) => ({ default: m.SermonEditorPage })))
 const TeachingView = lazy(() => sermons().then((m) => ({ default: m.TeachingView })))
+// The Learn area (reading plans and courses) also loads only when opened.
+const learn = () => import('./pages/LearnPages')
+const plans = () => import('./pages/PlanPages')
+const LearnHome = lazy(() => learn().then((m) => ({ default: m.LearnHome })))
+const NewPlanPage = lazy(() => plans().then((m) => ({ default: m.NewPlanPage })))
+const PlanPage = lazy(() => plans().then((m) => ({ default: m.PlanPage })))
 
 const NAV = [
   { to: '/bible', label: 'Bible', icon: BookOpen },
   { to: '/search', label: 'Search', icon: Search },
   { to: '/study', label: 'Study Workspace', short: 'Study', icon: Columns3 },
+  { to: '/learn', label: 'Learn', icon: GraduationCap },
   { to: '/dictionary', label: 'Dictionary', icon: BookA },
   { to: '/sermons', label: 'Sermons & Lessons', short: 'Sermons', icon: Mic },
   { to: '/studies', label: 'Saved Studies', short: 'Saved', icon: Library },
@@ -147,6 +154,9 @@ function Shell() {
           <Route path="/sermons/:id" element={<SermonEditorPage />} />
           <Route path="/sermons/:id/teach" element={<TeachingView />} />
           <Route path="/studies" element={<SavedStudiesPage />} />
+          <Route path="/learn" element={<LearnHome />} />
+          <Route path="/learn/plans/new" element={<NewPlanPage />} />
+          <Route path="/learn/plans/:id" element={<PlanPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/sources" element={<SourcesPage />} />
