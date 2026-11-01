@@ -414,7 +414,7 @@ export function SearchPage() {
             </p>
           )}
           {q && (
-            <p className="small" style={{ margin: 0 }} data-testid="also-commentaries">
+            <p className="small tap-24" style={{ margin: 0 }} data-testid="also-commentaries">
               <Link to={`/search?in=commentaries&q=${encodeURIComponent(q)}&mode=${mode}${scope !== 'all' ? `&scope=${scope}` : ''}`}>Search the commentaries for “{q}”</Link>
             </p>
           )}
