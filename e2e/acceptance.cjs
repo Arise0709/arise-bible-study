@@ -1201,14 +1201,16 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     const n = +(all.match(/(\d+) commentary notes? found/) ?? [])[1]
     check('searching every commentary finds notes, labeled as commentary (not Scripture)', n > 20 && /Commentary/.test(all) && /not Scripture/.test(await q.locator('main').innerText()), all.slice(0, 200))
     check('only the index pieces needed were downloaded (not the whole library)', fetched.filter((u) => /commentary\/search\/w\//.test(u)).length <= 2)
+    const before = await q.getByTestId('commentary-results').locator('[role=status]').innerText()
     await q.getByLabel('Commentary to search').selectOption('JFB')
+    await q.waitForFunction((prev) => { const s = document.querySelector('[data-testid="commentary-results"] [role=status]'); return s && s.textContent !== prev }, before)
     await q.getByTestId('commentary-results').locator('li').first().waitFor()
     const jfb = await q.getByTestId('commentary-results').innerText()
     const nj = +(jfb.match(/(\d+) commentary notes? found/) ?? [])[1]
     check('filtering to one commentary narrows the results', nj > 0 && nj < n && !/Adam Clarke on|Clarke on/.test(jfb))
+    const beforeOT = await q.getByTestId('commentary-results').locator('[role=status]').innerText()
     await q.getByLabel('Notes on').selectOption('OT')
-    await q.getByTestId('commentary-results').locator('[role=status]').waitFor()
-    await q.waitForTimeout(300)
+    await q.waitForFunction((prev) => { const s = document.querySelector('[data-testid="commentary-results"] [role=status]'); return s && s.textContent !== prev }, beforeOT)
     const ot = await q.getByTestId('commentary-results').innerText()
     check('Old Testament filter keeps only Old Testament notes', !/ on (John|Matthew|Luke|Mark|Acts|Romans) /.test(ot))
     await q.goto(BASE + '/search?in=commentaries&q=born%20again&mode=phrase', { waitUntil: 'networkidle' })
@@ -1298,6 +1300,33 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     await q.getByTestId('pack-orig:Jude').getByTestId('pack-status').filter({ hasText: 'Not downloaded' }).waitFor()
     check('removing a pack works and leaves the others in place', /Available offline/.test(await q.getByTestId('pack-comm:Jude').getByTestId('pack-status').innerText()))
     check('the screen says what always needs a connection', /always need a connection/.test(await packs.innerText()))
+    await c.close()
+  }
+
+  console.log('25. Hear Hebrew and Greek words (pronunciation guide)')
+  {
+    const c = await browser.newContext({ viewport: { width: 1440, height: 950 } })
+    // record what would be spoken (test browsers have no audio)
+    await c.addInitScript(() => {
+      window.__spoken = []
+      window.speechSynthesis.speak = (u) => window.__spoken.push({ text: u.text, lang: u.lang, rate: u.rate })
+    })
+    const q = await c.newPage()
+    q.on('pageerror', (e) => errors.push(e.message))
+    await q.goto(BASE + '/bible/John/3', { waitUntil: 'networkidle' })
+    await q.locator('#v-John-3-16 .w', { hasText: 'loved' }).click()
+    await q.getByTestId('orig-in-verse').filter({ hasText: 'ēgapēsen' }).waitFor()
+    await q.getByTestId('orig-in-verse').getByRole('button', { name: /Hear .* pronounced/ }).click()
+    let spoken = await q.evaluate(() => window.__spoken)
+    check('the Greek word in John 3:16 is spoken from its respelling', spoken.at(-1)?.text === 'ay-gah-pay-sehn' && spoken.at(-1)?.lang === 'en-US', JSON.stringify(spoken))
+    check('the guide is labeled as a classroom pronunciation guide', /classroom pronunciation guide/.test(await q.getByTestId('orig-in-verse').innerText()))
+    await q.goto(BASE + '/bible/Gen/1', { waitUntil: 'networkidle' })
+    await q.locator('#v-Gen-1-1 .w', { hasText: 'created' }).click()
+    await q.getByTestId('orig-in-verse').waitFor()
+    check('the Hebrew word in Gen 1:1 shows its stressed syllable', /bah-RAH/.test(await q.getByTestId('orig-in-verse').innerText()))
+    await q.getByTestId('orig-in-verse').getByRole('button', { name: /Hear .* pronounced/ }).click()
+    spoken = await q.evaluate(() => window.__spoken)
+    check('the Hebrew word is spoken', spoken.at(-1)?.text === 'bah-rah')
     await c.close()
   }
 

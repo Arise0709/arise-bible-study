@@ -4,6 +4,8 @@ import { baseStrong, loadBdb, loadForms, loadMorphTable, loadOrigChapter, plainX
 import { parseOsis, refPath } from '../lib/refs'
 import { useStudy } from '../lib/state'
 import { Loading, useAsync } from './ui'
+import { SayIt } from './Speak'
+import { respellGreek, respellHebrew } from '../lib/pronounce'
 import { grammarText } from '../lib/grammar'
 
 const EDITION: Record<string, string> = {
@@ -63,6 +65,10 @@ function WordForm({ w, lang, table, level, position }: { w: OrigWord; lang: 'H' 
         <dl className="kv">
           <dt>Transliteration</dt>
           <dd>{plainXlit(xlit)}</dd>
+          <dt>Say it</dt>
+          <dd>
+            <SayIt r={respellHebrew(xlit)} word={parts.join('')} />
+          </dd>
           <dt>In this verse</dt>
           <dd>
             “{gloss.replace(/\//g, '').replace(/\s+/g, ' ')}”{sense && <span className="muted"> · sense: {sense}</span>}
@@ -109,6 +115,10 @@ function WordForm({ w, lang, table, level, position }: { w: OrigWord; lang: 'H' 
       <dl className="kv">
         <dt>Transliteration</dt>
         <dd>{xlit}</dd>
+        <dt>Say it</dt>
+        <dd>
+          <SayIt r={respellGreek(xlit)} word={text} />
+        </dd>
         <dt>Dictionary form</dt>
         <dd>
           <span lang="grc" className="greek">{lemma}</span> {lemmaGloss && <span className="muted">· {lemmaGloss}</span>}

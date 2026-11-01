@@ -18,6 +18,8 @@ import { parseOsis } from '../lib/refs'
 import { useStudy, useStudySink } from '../lib/state'
 import { uid } from '../db/db'
 import { Empty, ErrorBox, Loading, toast, useAsync } from './ui'
+import { SayIt } from './Speak'
+import { fromStrongsPron, respellGreek } from '../lib/pronounce'
 import { ScriptureRef, SourceHtml } from './Scripture'
 
 export function ContextNote() {
@@ -327,7 +329,9 @@ export function StrongsCard({
         <dt>Transliteration</dt>
         <dd>{e.xlit || <span className="muted">not in source</span>}</dd>
         <dt>Pronunciation</dt>
-        <dd>{e.pron || <span className="muted">not available in the source for {e.lang} entries</span>}</dd>
+        <dd>
+          <SayIt r={(e.pron && fromStrongsPron(e.pron)) || (!isHeb && e.xlit ? respellGreek(e.xlit) : null)} word={e.lemma} />
+        </dd>
         {e.gloss && (
           <>
             <dt>Short gloss</dt>
