@@ -219,10 +219,15 @@ function CodeStep() {
 /* ---------------- signed in ---------------- */
 
 function SignedIn({ s }: { s: CloudState }) {
+  // keep the migration panel on screen after it finishes, so its confirmation stays visible
+  const [showMigration, setShowMigration] = useState(false)
+  useEffect(() => {
+    if (s.ownership === 'unclaimed') setShowMigration(true)
+  }, [s.ownership])
   return (
     <>
       <SyncCard s={s} />
-      {s.ownership === 'unclaimed' && <MigrationPanel />}
+      {showMigration && <MigrationPanel />}
       {s.ownership === 'other' && <OtherOwner s={s} />}
       <Conflicts />
       <Security s={s} />
@@ -270,6 +275,7 @@ function MigrationPanel() {
   const [step, setStep] = useState('')
   const [result, setResult] = useState<MigrationResult | null>(null)
   useEffect(() => {
+    if (cloudState().ownership !== 'unclaimed') return
     planMigration(db, supabaseRemote(cloud())).then(setPlan, (e) => setErr(navigator.onLine ? (e as Error).message : 'You are offline. Connect to the internet to combine this device with your account. Nothing has changed.'))
   }, [])
   const go = async () => {

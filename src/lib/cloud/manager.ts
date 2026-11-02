@@ -90,6 +90,7 @@ export async function claimDevice(session = state.session) {
   if (!session) throw new Error('Not signed in.')
   await db.syncMeta.put({ key: 'owner', value: { id: session.user.id, email: session.user.email ?? '' } })
   set({ ownership: 'mine' })
+  startLoop() // automatic sync from now on (after a guided migration too)
   try {
     await cloud().rpc('log_event', { action: 'device_linked', detail: { device: deviceId() } })
   } catch {
