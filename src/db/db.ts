@@ -331,6 +331,40 @@ export interface Attendance {
   updatedAt: number
 }
 
+/* ---------- Cloud sync bookkeeping (database version 3; this device only, never synced or backed up) ---------- */
+
+/** The version of a record the server and this device last agreed on. */
+export interface RecordState {
+  key: string // "kind/id"
+  kind: string
+  id: string
+  version: number
+  hash: string // fingerprint of the record at that version
+}
+
+/** A change kept because another device changed the same record first. Nothing is discarded until the person decides. */
+export interface SyncConflict {
+  id: string
+  kind: string
+  recordId: string
+  label: string
+  local: unknown // this device's version (null if it was deleted here)
+  server: unknown // the account's version (null if deleted there)
+  serverVersion: number
+  at: number
+  resolved?: 'local' | 'server' | 'both'
+  resolvedAt?: number
+}
+
+/** Copies of local data taken before a migration, so it can always be restored. */
+export interface LocalSnapshot {
+  id: string
+  reason: string
+  at: number
+  counts: Record<string, number>
+  data: Record<string, unknown[]>
+}
+
 class StudyDB extends Dexie {
   highlights!: EntityTable<Highlight, 'id'>
   bookmarks!: EntityTable<Bookmark, 'id'>
@@ -350,9 +384,13 @@ class StudyDB extends Dexie {
   attempts!: EntityTable<Attempt, 'id'>
   submissions!: EntityTable<Submission, 'id'>
   attendance!: EntityTable<Attendance, 'id'>
+  recordState!: EntityTable<RecordState, 'key'>
+  syncMeta!: EntityTable<Setting, 'key'>
+  conflicts!: EntityTable<SyncConflict, 'id'>
+  snapshots!: EntityTable<LocalSnapshot, 'id'>
 
-  constructor() {
-    super('arise-bible-study')
+  constructor(name = 'arise-bible-study') {
+    super(name)
     this.version(1).stores({
       highlights: 'id, &key, book',
       bookmarks: 'id, &key, book, createdAt',
@@ -376,9 +414,17 @@ class StudyDB extends Dexie {
       submissions: 'id, courseId, lessonId',
       attendance: 'id, courseId, date',
     })
+    // Version 3 only adds this device's sync bookkeeping. Nothing in versions 1 and 2 changes.
+    this.version(3).stores({
+      recordState: 'key, kind',
+      syncMeta: 'key',
+      conflicts: 'id, kind, recordId, at',
+      snapshots: 'id, at',
+    })
   }
 }
 
+export { StudyDB }
 export const db = new StudyDB()
 
 export const LEARNING_TABLES = ['plans', 'planProgress', 'courses', 'lessons', 'courseVersions', 'enrollments', 'attempts', 'submissions', 'attendance'] as const
