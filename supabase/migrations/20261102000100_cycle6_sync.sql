@@ -77,7 +77,10 @@ create policy history_delete on public.user_record_history for delete to authent
 create policy audit_select on public.audit_events for select to authenticated using (user_id = auth.uid());
 create policy audit_insert on public.audit_events for insert to authenticated with check (user_id = auth.uid());
 
-revoke all on public.profiles, public.user_records, public.user_record_history, public.audit_events from anon, public;
+-- Supabase grants new tables to anon and authenticated by default: take that away, then allow only what is needed.
+revoke all on public.profiles, public.user_records, public.user_record_history, public.audit_events from anon, authenticated, public;
+revoke all on sequence public.sync_seq from anon, authenticated, public;
+grant all on public.profiles, public.user_records, public.user_record_history, public.audit_events to service_role;
 grant select, insert, update on public.profiles to authenticated;
 grant select, insert, update on public.user_records to authenticated;
 grant select, insert, delete on public.user_record_history to authenticated;
@@ -121,6 +124,9 @@ begin
   if jsonb_typeof(changes) <> 'array' or jsonb_array_length(changes) > 200 then
     raise exception 'send between 1 and 200 changes at a time' using errcode = '22023';
   end if;
+  -- One person's saves are applied one batch at a time, so their change numbers (seq) become visible in
+  -- order and a device pulling "everything after N" can never skip a change that commits late.
+  perform pg_advisory_xact_lock(hashtextextended(uid::text, 0));
   for c in select * from jsonb_array_elements(changes) loop
     base := coalesce((c ->> 'base')::bigint, 0);
     select * into cur from public.user_records r
@@ -170,6 +176,7 @@ language sql security invoker set search_path = '' as $$
   insert into public.audit_events (user_id, action, detail) values (auth.uid(), action, coalesce(detail, '{}'::jsonb))
 $$;
 
-revoke all on function public.sync_push(text, jsonb), public.sync_pull(bigint, int), public.log_event(text, jsonb) from public, anon;
+revoke all on function public.sync_push(text, jsonb), public.sync_pull(bigint, int), public.log_event(text, jsonb), public.is_long_form(text) from public, anon;
 grant execute on function public.sync_push(text, jsonb), public.sync_pull(bigint, int), public.log_event(text, jsonb) to authenticated;
 revoke all on function public.handle_new_user() from public, anon, authenticated;
+revoke all on sequence public.audit_events_id_seq from anon;
