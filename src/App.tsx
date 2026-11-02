@@ -10,6 +10,7 @@ import { AppStatusBanners } from './components/Offline'
 import { autoRequestPersistence } from './lib/dataSafety'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { BiblePage } from './pages/BiblePage'
+import { SyncBadge } from './components/SyncBadge'
 
 import { DictionaryPage, KeyboardHelp, SavedStudiesPage, SearchPage, SettingsPage, SourcesPage } from './pages/OtherPages'
 
@@ -33,6 +34,8 @@ const CoursePage = lazy(() => coursePages().then((m) => ({ default: m.CoursePage
 const LessonPage = lazy(() => coursePages().then((m) => ({ default: m.LessonPage })))
 const CourseEditorPage = lazy(() => builder().then((m) => ({ default: m.CourseEditorPage })))
 const LessonEditorPage = lazy(() => builder().then((m) => ({ default: m.LessonEditorPage })))
+// Accounts and sync load only on the account page (or for a browser that is already signed in).
+const AccountPage = lazy(() => import('./pages/AccountPage').then((m) => ({ default: m.AccountPage })))
 
 const NAV = [
   { to: '/bible', label: 'Bible', icon: BookOpen },
@@ -137,6 +140,7 @@ function Shell() {
           <button className="iconbtn" onClick={() => setHelp(true)} aria-label="Help and shortcuts">
             <HelpCircle size={19} />
           </button>
+          <SyncBadge />
           <NavLink to="/settings" className="iconbtn" aria-label="Settings">
             <SettingsIcon size={19} />
           </NavLink>
@@ -169,6 +173,7 @@ function Shell() {
           <Route path="/learn/courses/:id/lessons/:lessonId/edit" element={<LessonEditorPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/account" element={<AccountPage />} />
           <Route path="/sources" element={<SourcesPage />} />
           <Route path="*" element={<div className="page"><h1>Page not found</h1><p><NavLink to="/bible">Open the Bible</NavLink></p></div>} />
         </Routes>

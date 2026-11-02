@@ -1550,3 +1550,15 @@ a.iconbtn {
     display: none;
   }
 }
+.conflict-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 0.85em;
+  margin: 0;
+}

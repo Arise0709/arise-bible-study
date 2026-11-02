@@ -36,7 +36,11 @@ function productionHeaders(): Record<string, string> {
   const cfg = JSON.parse(fs.readFileSync('vercel.json', 'utf8')) as { headers: { source: string; headers: { key: string; value: string }[] }[] }
   const all = cfg.headers.find((h) => h.source === '/(.*)')?.headers ?? []
   // over plain http on this machine, "upgrade to https" would break every request
-  return Object.fromEntries(all.filter((h) => h.key !== 'Strict-Transport-Security').map((h) => [h.key, h.value.replace(/; upgrade-insecure-requests/, '')]))
+  // a local test Supabase (dev/supabase-local) is allowed only when the build points at one
+  const local = /^http:\/\/127\.0\.0\.1:\d+$/.test(process.env.VITE_SUPABASE_URL ?? '') ? ` ${process.env.VITE_SUPABASE_URL}` : ''
+  return Object.fromEntries(
+    all.filter((h) => h.key !== 'Strict-Transport-Security').map((h) => [h.key, h.value.replace(/; upgrade-insecure-requests/, '').replace("connect-src 'self'", `connect-src 'self'${local}`)]),
+  )
 }
 
 // https://vite.dev/config/
