@@ -6,7 +6,7 @@
  * Checks: a valid session token, the same-site origin, the typed confirmation, the password again, and a
  * rate limit. Nothing is deleted unless all pass.
  */
-import { clientId, rateLimited, sameSite } from './_lib/guard'
+import { clientId, rateLimited, sameSite } from './_lib/guard.js'
 
 const json = (status: number, body: unknown) => Response.json(body, { status })
 
