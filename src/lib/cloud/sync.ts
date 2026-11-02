@@ -97,11 +97,14 @@ export interface SyncReport {
 }
 
 export class SyncEngine {
-  constructor(
-    private db: StudyDB,
-    private remote: Remote,
-    private device: string,
-  ) {}
+  private db: StudyDB
+  private remote: Remote
+  private device: string
+  constructor(db: StudyDB, remote: Remote, device: string) {
+    this.db = db
+    this.remote = remote
+    this.device = device
+  }
 
   private table(kind: string) {
     return this.db.table(kind)
