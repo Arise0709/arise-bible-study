@@ -29,3 +29,4 @@ test-results/
 playwright-report/
 .vercel
 __pycache__/
+dist-cloud

@@ -30,3 +30,40 @@ jobs:
           npx vite preview --port 4173 --strictPort --host 127.0.0.1 &
           for i in $(seq 30); do curl -sf http://127.0.0.1:4173 >/dev/null && break; sleep 1; done
           node e2e/acceptance.cjs http://127.0.0.1:4173
+
+  # Accounts and sync, against a local copy of the Supabase services (dev/supabase-local).
+  cloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start local Supabase copy
+        run: |
+          cd dev/supabase-local
+          docker compose --env-file .env up -d --wait db mail
+          docker compose --env-file .env up -d auth rest
+          for i in $(seq 60); do PGPASSWORD=local-dev-only psql -h 127.0.0.1 -p 54322 -U postgres -tAc "select 1 from auth.users limit 1" >/dev/null 2>&1 && break; sleep 2; done
+          for f in $(ls ../../supabase/migrations/*.sql | grep -v '\.down\.sql$' | sort); do PGPASSWORD=local-dev-only psql -h 127.0.0.1 -p 54322 -U postgres -v ON_ERROR_STOP=1 -q -f "$f"; done
+          docker compose --env-file .env restart rest
+          node gateway.mjs &
+          for i in $(seq 30); do curl -sf http://127.0.0.1:54321/auth/v1/health >/dev/null && break; sleep 1; done
+      - name: Security and sync checks
+        run: |
+          set -a; . dev/supabase-local/.env; set +a
+          export SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=$ANON_KEY SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY
+          node e2e/cloud.cjs
+          npx vitest run tests/sync.cloud.test.ts tests/migrate.cloud.test.ts tests/account.cloud.test.ts
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Account screens in the browser
+        run: |
+          set -a; . dev/supabase-local/.env; set +a
+          VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=$ANON_KEY npx vite build --outDir dist-cloud
+          VITE_SUPABASE_URL=http://127.0.0.1:54321 npx vite preview --outDir dist-cloud --port 5173 --strictPort --host 127.0.0.1 &
+          for i in $(seq 30); do curl -sf http://127.0.0.1:5173 >/dev/null && break; sleep 1; done
+          node e2e/account.cjs http://127.0.0.1:5173
