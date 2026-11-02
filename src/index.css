@@ -286,7 +286,7 @@ h3 {
 .bottomnav {
   display: none;
 }
-@media (max-width: 1240px) {
+@media (max-width: 1400px) {
   .mainnav a span {
     display: none;
   }

@@ -1145,7 +1145,7 @@ const shot = async (p, name) => SHOTS && p.screenshot({ path: path.join(SHOTS, n
     check('the lesson shows the exact KJV text of its primary Scripture', /Our Father which art in heaven, Hallowed be thy name/.test(lessonText))
     check('instructor notes are not shown to students', !/LEADER ONLY/.test(lessonText))
     await s.getByLabel('Which line of this prayer is hardest for you to pray?').fill('Thy will be done.')
-    await s.locator('text=Saved').first().waitFor()
+    await s.locator('main').getByText('Saved', { exact: true }).first().waitFor()
     // quiz: fail, then pass
     await s.getByRole('button', { name: 'Start the quiz' }).click()
     await s.getByTestId('quiz').getByLabel('Moses').check()
