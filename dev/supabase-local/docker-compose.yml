@@ -1,0 +1,63 @@
+# A small local copy of the Supabase services Carter Study Bible uses (database, Auth, REST, test mailbox).
+# Development and automated tests only. Keys in .env are local throwaway values, never production keys.
+#   docker compose --env-file .env up -d     then   node gateway.mjs   (serves http://127.0.0.1:54321)
+name: csb-supabase-local
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: local-dev-only
+    ports: ['54322:5432']
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'postgres']
+      interval: 2s
+      retries: 30
+  auth:
+    image: supabase/gotrue:v2.170.0
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ['9999:9999']
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      PORT: '9999'
+      API_EXTERNAL_URL: http://127.0.0.1:54321/auth/v1
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:local-dev-only@db:5432/postgres?search_path=auth
+      GOTRUE_SITE_URL: http://127.0.0.1:5173
+      GOTRUE_URI_ALLOW_LIST: http://127.0.0.1:5173/**
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: '3600'
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true'
+      GOTRUE_MAILER_AUTOCONFIRM: 'false'
+      GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: 'true'
+      GOTRUE_SMTP_HOST: mail
+      GOTRUE_SMTP_PORT: '1025'
+      GOTRUE_SMTP_ADMIN_EMAIL: no-reply@carterstudybible.app
+      GOTRUE_SMTP_SENDER_NAME: Carter Study Bible
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      GOTRUE_MFA_TOTP_ENROLL_ENABLED: 'true'
+      GOTRUE_MFA_TOTP_VERIFY_ENABLED: 'true'
+      GOTRUE_PASSWORD_MIN_LENGTH: '10'
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: '1000'
+  rest:
+    image: postgrest/postgrest:v12.2.3
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ['3001:3000']
+    environment:
+      PGRST_DB_URI: postgres://authenticator:local-dev-only@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_CHANNEL_ENABLED: 'true'
+  mail:
+    image: axllent/mailpit:v1.21
+    ports: ['54324:8025']
