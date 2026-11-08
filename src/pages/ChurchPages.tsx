@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Church, Copy, Crown, Mail, Plus, RefreshCw, Trash2, UserMinus, Users } from 'lucide-react'
-import { Dialog, Empty, ErrorBox, Loading, Tabs, toast, useAsync } from '../components/ui'
+import { Dialog, Empty, ErrorBox, Loading, Tabs, downloadBlob, slug, toast, useAsync } from '../components/ui'
 import { cloudConfigured } from '../lib/cloud/config'
 import { cloud, onCloudState, type CloudState } from '../lib/cloud/manager'
 import {
@@ -1244,6 +1244,15 @@ export function MyMembershipTab({ ctx }: { ctx: OrgCtx }) {
           reach you.
         </p>
       </section>
+      <section className="card stack">
+        <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Your work in {org.name}</h2>
+        <p style={{ margin: 0 }}>Download everything you did here: course enrollments, progress, quiz results, written answers with feedback, attendance, group responses, discussion posts, and the copies you shared.</p>
+        <div>
+          <button className="btn" onClick={() => void act.run(() => downloadMyWork(org, ctx.myId), 'Downloaded.')} data-testid="download-my-work">
+            Download my work (JSON)
+          </button>
+        </div>
+      </section>
       {me.role !== 'owner' ? (
         <section className="card stack">
           <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Leave {org.name}</h2>
@@ -1273,6 +1282,32 @@ export function MyMembershipTab({ ctx }: { ctx: OrgCtx }) {
       )}
     </div>
   )
+}
+
+/** Everything the member did in this workspace (only their own rows; the database enforces that). */
+async function downloadMyWork(org: Org, myId: string) {
+  const c = cloud()
+  type Q = { eq: (k: string, v: string) => Q; in: (k: string, v: string[]) => Q }
+  const get = async (table: string, filter: (q: Q) => Q) => {
+    const { data, error } = (await (filter(c.from(table).select('*') as unknown as Q) as unknown as PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>))
+    if (error) throw new Error(error.message)
+    return data ?? []
+  }
+  const enrollments = (await get('org_enrollments', (q) => q.eq('org_id', org.id).eq('user_id', myId))) as { id: string }[]
+  const ids = enrollments.map((e) => e.id)
+  const byEnr = (t: string) => (ids.length ? get(t, (q) => q.in('enrollment_id', ids)) : Promise.resolve([]))
+  const [progress, quizzes, written, attendance, responses, posts, shared, courses] = await Promise.all([
+    byEnr('org_lesson_progress'),
+    byEnr('org_quiz_attempts'),
+    byEnr('org_written_answers'),
+    byEnr('org_attendance'),
+    get('org_group_responses', (q) => q.eq('org_id', org.id).eq('user_id', myId)),
+    get('org_discussion_posts', (q) => q.eq('org_id', org.id).eq('author_id', myId)),
+    get('org_shared_resources', (q) => q.eq('org_id', org.id).eq('owner_id', myId)),
+    get('org_courses', (q) => q.eq('org_id', org.id)),
+  ])
+  const out = { format: 'carter-study-bible-workspace-export', version: 1, workspace: org.name, exportedAt: new Date().toISOString(), courses: (courses as { id: string; title: string }[]).filter((x) => enrollments.some((e) => (e as unknown as { course_id: string }).course_id === x.id)).map((x) => ({ id: x.id, title: x.title })), enrollments, progress, quizzes, written, attendance, groupResponses: responses, posts, shared }
+  downloadBlob(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), `${slug(org.name)}-my-work-${out.exportedAt.slice(0, 10)}.json`)
 }
 
 /* ---------------- activity log (owner and administrators) ---------------- */

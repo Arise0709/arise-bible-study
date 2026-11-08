@@ -89,7 +89,16 @@ Do these for the **Preview** first, as in sections 2 to 5. Production only after
    3. Phone: open the email, sign in with that address, review, and accept. The workspace opens as Pastor/Teacher.
    4. Laptop: Members shows the new person with their email; change their role; Activity lists each step.
    5. Open the same invitation link again: it says it was already used.
-   6. Phone: My membership > Leave. Notes on the phone are unchanged.
+   6. Laptop: Courses > Add a course > a copy of one of your courses. Edit a lesson, Publish to the workspace.
+      Invitations: invite the phone's address into that course. Phone: accept, open the course, write a reflection,
+      take the quiz (it is graded by the server), mark the lessons done.
+   7. Laptop: the course's Manage page shows the student; grade the reflection; add a session and mark attendance.
+      Phone: the feedback appears and the course completes (if attendance was required).
+   8. Laptop: Groups > Create a group, prepare a Romans 8 study, assign it. Phone: submit a response. Laptop: the
+      response appears under Responses. Turn on discussion, post, report, hide.
+   9. Phone: in the Study Workspace, Share a copy of a study with the group; laptop sees it under Shared.
+      Post an announcement; the phone shows "(1 new)". Reports shows the numbers; download the spreadsheets.
+   10. Phone: My membership > Download my work, then Leave. Notes on the phone are unchanged.
 
 To switch workspaces off without touching accounts, run the undo file
 `supabase/migrations/20261108000100_r62_orgs.down.sql` after taking a backup (it deletes workspace data only).

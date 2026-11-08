@@ -157,7 +157,7 @@ const idbGet = (page, store, key) =>
   const link = (await laptop.getByTestId('invite-link').inputValue()).replace(/^https?:\/\/[^/]+/, BASE)
 
   console.log('3. The student takes the course on a phone')
-  const pc = await browser.newContext({ ...devices['Pixel 7'], serviceWorkers: 'block' })
+  const pc = await browser.newContext({ ...devices['Pixel 7'], serviceWorkers: 'block', acceptDownloads: true })
   await route(pc)
   const phone = await pc.newPage()
   phone.on('pageerror', (e) => errors.push('phone: ' + e.message))
@@ -244,6 +244,11 @@ const idbGet = (page, store, key) =>
   await phone.goto(courseUrl + '/lessons/pl1', { waitUntil: 'networkidle' })
   await phone.getByTestId('written-feedback').waitFor()
   check('the student reads the instructor feedback on their reflection', /Well said/.test(await phone.getByTestId('written-feedback').innerText()))
+
+  await phone.goto(courseUrl.replace(/\/courses\/.*/, '') + '?tab=me', { waitUntil: 'networkidle' })
+  const [dl] = await Promise.all([phone.waitForEvent('download'), phone.getByTestId('download-my-work').click()])
+  const mine = JSON.parse(require('fs').readFileSync(await dl.path(), 'utf8'))
+  check('a member downloads their own work: reflection with feedback, quiz scores, attendance', mine.written.some((w) => /Declared righteous/.test(w.body) && /Well said/.test(w.feedback)) && mine.quizzes.map((q) => q.score).sort().join(',') === '0,100' && mine.attendance[0]?.status === 'late' && mine.courses[0]?.title === 'Romans Foundations (Arise)')
 
   console.log('6. A revision never changes finished work')
   await laptop.goto(courseUrl + '/edit', { waitUntil: 'networkidle' })
