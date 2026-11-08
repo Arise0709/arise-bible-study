@@ -55,6 +55,8 @@ import {
 
 import { CoursesTab } from './ChurchCourses'
 import { GroupsTab } from './ChurchGroups'
+import { AnnouncementsTab, SharedTab } from './ChurchShare'
+import { unreadCount } from '../lib/cloud/orgShare'
 
 /* ---------------- shared bits ---------------- */
 
@@ -522,6 +524,19 @@ function OrgPageInner() {
     if (orgId) setCurrentOrgId(orgId)
   }, [orgId])
   const mine = data.data?.all.find((m) => m.org.id === orgId)
+  // the "new announcements" count, unless the member turned the badge off (My membership)
+  const [unread, setUnread] = useState(0)
+  useEffect(() => {
+    if (!mine || mine.notify?.announcements === false) return setUnread(0)
+    let alive = true
+    const load = () => void unreadCount(orgId).then((n) => alive && setUnread(n), () => {})
+    load()
+    window.addEventListener('abs-announcements-read', load)
+    return () => {
+      alive = false
+      window.removeEventListener('abs-announcements-read', load)
+    }
+  }, [mine, orgId])
   useEffect(() => {
     if (mine) document.title = `${mine.org.name} · Arise Bible Study`
   }, [mine])
@@ -540,6 +555,7 @@ function OrgPageInner() {
   const ctx: OrgCtx = { org: mine.org, me: mine, myId: data.data!.myId, reload: data.reload, all: data.data!.all }
   const tabs = ORG_TABS.filter((t) => rank(mine.role) >= t.min)
   const tab = tabs.find((t) => t.id === params.get('tab')) ?? tabs[0]
+  const label = (t: (typeof tabs)[number]) => (t.id === 'announcements' && unread ? `Announcements (${unread} new)` : t.label)
   return (
     <div className="page stack" style={{ maxWidth: 1000 }}>
       <div className="row" style={{ flexWrap: 'wrap', gap: 12 }}>
@@ -571,7 +587,7 @@ function OrgPageInner() {
           </label>
         )}
       </div>
-      <Tabs tabs={tabs.map((t) => ({ id: t.id, label: t.label }))} value={tab.id} onChange={(id) => setParams({ tab: id })} label="Workspace sections" />
+      <Tabs tabs={tabs.map((t) => ({ id: t.id, label: label(t) }))} value={tab.id} onChange={(id) => setParams({ tab: id })} label="Workspace sections" />
       <div role="tabpanel" aria-label={tab.label}>
         <tab.View ctx={ctx} />
       </div>
@@ -1341,6 +1357,8 @@ export const ORG_TABS: { id: string; label: string; min: number; View: (p: { ctx
   { id: 'members', label: 'Members', min: 1, View: MembersTab },
   { id: 'courses', label: 'Courses', min: 1, View: CoursesTab },
   { id: 'groups', label: 'Groups', min: 1, View: GroupsTab },
+  { id: 'announcements', label: 'Announcements', min: 1, View: AnnouncementsTab },
+  { id: 'shared', label: 'Shared', min: 1, View: SharedTab },
   { id: 'invitations', label: 'Invitations', min: 2, View: InvitationsTab },
   { id: 'settings', label: 'Settings', min: 5, View: SettingsTab },
   { id: 'activity', label: 'Activity', min: 5, View: ActivityTab },

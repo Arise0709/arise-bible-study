@@ -13,6 +13,7 @@ import { formatRef, parseOsis, parseRef, toOsis } from '../lib/refs'
 import { StudySinkCtx, quoteTr, useStudy, type StudySink } from '../lib/state'
 import { WORKSHEET_SECTIONS, db, emptyWorksheet, recordSession, uid, type Block, type Study, type WorksheetKey } from '../db/db'
 import { pdfExport, studyToDoc, toMarkdown, wordExport } from '../export/doc'
+import { ShareCopyButton } from '../components/ShareCopy'
 import { createSermonFromStudy } from './sermonTemplates'
 import { guardedPut, useAutosave } from '../lib/autosave'
 import { ConflictBanner, useWatchRecord } from '../components/Conflict'
@@ -331,6 +332,13 @@ function Worksheet({ study, update, autosave, onGoToPassage }: { study: Study; u
           <button className="btn" onClick={() => setCreateLesson(true)}>
             <GraduationCap size={15} /> Create course lesson
           </button>
+          <ShareCopyButton
+            make={() => {
+              const { folderId: _f, ...rest } = study
+              void _f
+              return { kind: 'study', title: study.title, content: { study: rest }, sourceId: study.id }
+            }}
+          />
           <span className="spacer" />
           <button className="btn danger" onClick={() => setConfirmDelete(true)}>
             <Trash2 size={15} /> Delete study

@@ -68,6 +68,7 @@ export interface Membership {
   org: Org
   role: Role
   display_name: string
+  notify?: { announcements: boolean }
 }
 export interface InvitePreview {
   status: 'ok' | 'expired' | 'used' | 'revoked' | 'invalid' | 'wrong_account'
@@ -160,10 +161,10 @@ export function clearPendingInvite() {
 
 export async function myMemberships(): Promise<Membership[]> {
   const uid = await me()
-  const rows = must(await cloud().from('org_members').select('role, display_name, orgs(*)').eq('user_id', uid).is('removed_at', null))
-  const list = (rows as unknown as { role: Role; display_name: string; orgs: Org | null }[])
+  const rows = must(await cloud().from('org_members').select('role, display_name, notify, orgs(*)').eq('user_id', uid).is('removed_at', null))
+  const list = (rows as unknown as { role: Role; display_name: string; notify: { announcements: boolean }; orgs: Org | null }[])
     .filter((r) => r.orgs)
-    .map((r) => ({ org: r.orgs!, role: r.role, display_name: r.display_name }))
+    .map((r) => ({ org: r.orgs!, role: r.role, display_name: r.display_name, notify: r.notify }))
     .sort((a, b) => a.org.name.localeCompare(b.org.name))
   rememberHasOrgs(list.length)
   return list

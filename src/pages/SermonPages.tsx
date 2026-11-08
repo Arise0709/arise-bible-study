@@ -13,6 +13,7 @@ import { pdfExport, sermonToDoc, toMarkdown, wordExport } from '../export/doc'
 import { SECTION_TYPES, TEMPLATES, newSermon } from './sermonTemplates'
 import { guardedPut, useAutosave } from '../lib/autosave'
 import { ConflictBanner, useWatchRecord } from '../components/Conflict'
+import { ShareCopyButton } from '../components/ShareCopy'
 
 /* ================= List ================= */
 
@@ -237,6 +238,14 @@ function SermonEditor({ initial }: { initial: Sermon }) {
         <button className="btn" onClick={() => exportSermon(s, 'md')}><Download size={15} /> .md</button>
         <button className="btn" onClick={() => exportSermon(s, 'docx')}><FileText size={15} /> Word</button>
         <button className="btn" onClick={() => exportSermon(s, 'pdf')}><FileText size={15} /> PDF</button>
+        <ShareCopyButton
+          make={() => {
+            const { folderId: _f, studyId: _s, ...rest } = s
+            void _f
+            void _s
+            return { kind: 'sermon_outline', title: s.title || 'Untitled outline', content: { sermon: rest }, sourceId: s.id }
+          }}
+        />
       </div>
 
       <h1 className="sr-only">Edit outline: {s.title || 'Untitled'}</h1>
