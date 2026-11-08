@@ -46,6 +46,9 @@ const OrgCoursePage = lazy(() => churchCourses().then((m) => ({ default: m.OrgCo
 const OrgLessonPage = lazy(() => churchCourses().then((m) => ({ default: m.OrgLessonPage })))
 const OrgCourseManage = lazy(() => churchCourses().then((m) => ({ default: m.OrgCourseManage })))
 const OrgCourseEdit = lazy(() => churchCourses().then((m) => ({ default: () => <m.OrgCourseEditRoute /> })))
+const churchGroups = () => import('./pages/ChurchGroups')
+const GroupPage = lazy(() => churchGroups().then((m) => ({ default: m.GroupPage })))
+const GroupStudyPage = lazy(() => churchGroups().then((m) => ({ default: m.GroupStudyPage })))
 const OrgLessonEdit = lazy(() => churchCourses().then((m) => ({ default: () => <m.OrgCourseEditRoute lesson /> })))
 
 const NAV = [
@@ -189,6 +192,8 @@ function Shell() {
           <Route path="/church" element={<ChurchHome />} />
           <Route path="/church/join" element={<JoinPage />} />
           <Route path="/church/:orgId" element={<OrgPage />} />
+          <Route path="/church/:orgId/groups/:groupId" element={<GroupPage />} />
+          <Route path="/church/:orgId/groups/:groupId/studies/:studyId" element={<GroupStudyPage />} />
           <Route path="/church/:orgId/courses/:courseId" element={<OrgCoursePage />} />
           <Route path="/church/:orgId/courses/:courseId/edit" element={<OrgCourseEdit />} />
           <Route path="/church/:orgId/courses/:courseId/manage" element={<OrgCourseManage />} />

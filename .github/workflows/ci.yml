@@ -70,3 +70,4 @@ jobs:
           node e2e/account.cjs http://127.0.0.1:5173
           SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=$ANON_KEY SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY node e2e/church.cjs http://127.0.0.1:5173
           SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=$ANON_KEY SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY node e2e/church-courses.cjs http://127.0.0.1:5173
+          SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=$ANON_KEY SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY node e2e/church-groups.cjs http://127.0.0.1:5173
