@@ -6,14 +6,15 @@ not production keys and grant nothing outside this machine.
 
     cd dev/supabase-local
     docker compose --env-file .env up -d
-    PGPASSWORD=local-dev-only psql -h 127.0.0.1 -p 54322 -U postgres -f ../../supabase/migrations/20261102000100_cycle6_sync.sql
-    PGPASSWORD=local-dev-only psql -h 127.0.0.1 -p 54322 -U postgres -f ../../supabase/migrations/20261102000200_cycle6_mfa_required.sql
+    for f in $(ls ../../supabase/migrations/*.sql | grep -v '\.down\.sql$' | sort); do
+      PGPASSWORD=local-dev-only psql -h 127.0.0.1 -p 54322 -U postgres -v ON_ERROR_STOP=1 -q -f "$f"; done
     docker compose --env-file .env restart rest
     node gateway.mjs          # http://127.0.0.1:54321, the same URL shape as a Supabase project
 
 Then, from the repository root:
 
     set -a; . dev/supabase-local/.env; set +a
-    SUPABASE_ANON_KEY=$ANON_KEY npm run test:cloud
+    SUPABASE_ANON_KEY=$ANON_KEY SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY npm run test:cloud
+    SUPABASE_ANON_KEY=$ANON_KEY SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY node e2e/orgs.cjs
 
 Test emails: http://127.0.0.1:54324

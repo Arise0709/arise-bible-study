@@ -57,6 +57,7 @@ jobs:
           set -a; . dev/supabase-local/.env; set +a
           export SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=$ANON_KEY SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY
           node e2e/cloud.cjs
+          node e2e/orgs.cjs
           npx vitest run tests/sync.cloud.test.ts tests/migrate.cloud.test.ts tests/account.cloud.test.ts
       - name: Install browser
         run: npx playwright install --with-deps chromium
