@@ -1,4 +1,4 @@
-import booksJson from './books.json'
+import booksJson from './books.json' with { type: 'json' }
 
 export interface BookInfo {
   id: string

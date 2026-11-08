@@ -41,6 +41,12 @@ const church = () => import('./pages/ChurchPages')
 const ChurchHome = lazy(() => church().then((m) => ({ default: m.ChurchHome })))
 const JoinPage = lazy(() => church().then((m) => ({ default: m.JoinPage })))
 const OrgPage = lazy(() => church().then((m) => ({ default: m.OrgPage })))
+const churchCourses = () => import('./pages/ChurchCourses')
+const OrgCoursePage = lazy(() => churchCourses().then((m) => ({ default: m.OrgCoursePage })))
+const OrgLessonPage = lazy(() => churchCourses().then((m) => ({ default: m.OrgLessonPage })))
+const OrgCourseManage = lazy(() => churchCourses().then((m) => ({ default: m.OrgCourseManage })))
+const OrgCourseEdit = lazy(() => churchCourses().then((m) => ({ default: () => <m.OrgCourseEditRoute /> })))
+const OrgLessonEdit = lazy(() => churchCourses().then((m) => ({ default: () => <m.OrgCourseEditRoute lesson /> })))
 
 const NAV = [
   { to: '/bible', label: 'Bible', icon: BookOpen },
@@ -183,6 +189,11 @@ function Shell() {
           <Route path="/church" element={<ChurchHome />} />
           <Route path="/church/join" element={<JoinPage />} />
           <Route path="/church/:orgId" element={<OrgPage />} />
+          <Route path="/church/:orgId/courses/:courseId" element={<OrgCoursePage />} />
+          <Route path="/church/:orgId/courses/:courseId/edit" element={<OrgCourseEdit />} />
+          <Route path="/church/:orgId/courses/:courseId/manage" element={<OrgCourseManage />} />
+          <Route path="/church/:orgId/courses/:courseId/lessons/:lessonId" element={<OrgLessonPage />} />
+          <Route path="/church/:orgId/courses/:courseId/lessons/:lessonId/edit" element={<OrgLessonEdit />} />
           <Route path="/sources" element={<SourcesPage />} />
           <Route path="*" element={<div className="page"><h1>Page not found</h1><p><NavLink to="/bible">Open the Bible</NavLink></p></div>} />
         </Routes>

@@ -53,6 +53,8 @@ import {
   type Role,
 } from '../lib/cloud/orgs'
 
+import { CoursesTab } from './ChurchCourses'
+
 /* ---------------- shared bits ---------------- */
 
 function useSession(): CloudState | null {
@@ -1336,6 +1338,7 @@ export function ActivityTab({ ctx }: { ctx: OrgCtx }) {
 export const ORG_TABS: { id: string; label: string; min: number; View: (p: { ctx: OrgCtx }) => ReactNode }[] = [
   { id: 'overview', label: 'Overview', min: 1, View: OverviewTab },
   { id: 'members', label: 'Members', min: 1, View: MembersTab },
+  { id: 'courses', label: 'Courses', min: 1, View: CoursesTab },
   { id: 'invitations', label: 'Invitations', min: 2, View: InvitationsTab },
   { id: 'settings', label: 'Settings', min: 5, View: SettingsTab },
   { id: 'activity', label: 'Activity', min: 5, View: ActivityTab },

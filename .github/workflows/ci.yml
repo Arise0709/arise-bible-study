@@ -58,7 +58,7 @@ jobs:
           export SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=$ANON_KEY SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY
           node e2e/cloud.cjs
           node e2e/orgs.cjs
-          npx vitest run tests/sync.cloud.test.ts tests/migrate.cloud.test.ts tests/account.cloud.test.ts tests/orgInvite.cloud.test.ts
+          npx vitest run tests/sync.cloud.test.ts tests/migrate.cloud.test.ts tests/account.cloud.test.ts tests/orgInvite.cloud.test.ts tests/orgQuiz.cloud.test.ts
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - name: Account screens in the browser
@@ -69,3 +69,4 @@ jobs:
           for i in $(seq 30); do curl -sf http://127.0.0.1:5173 >/dev/null && break; sleep 1; done
           node e2e/account.cjs http://127.0.0.1:5173
           SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=$ANON_KEY SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY node e2e/church.cjs http://127.0.0.1:5173
+          SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY=$ANON_KEY SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY node e2e/church-courses.cjs http://127.0.0.1:5173

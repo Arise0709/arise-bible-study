@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ArrowDown, ArrowUp, BookOpen, Copy, Download, Eye, FileText, Heading, Plus, Trash2, Type, Video } from 'lucide-react'
@@ -73,15 +73,40 @@ function useDraft<T extends { id: string; updatedAt: number }>(initial: T | unde
 const saveCourse = (c: Course) => db.courses.put(c)
 const saveLesson = (l: Lesson) => db.lessons.put(l)
 
+/**
+ * Editing a church workspace course with this same builder (Release 6.2). The working copy lives in the workspace,
+ * not on this device; the header and footer carry the workspace's own actions (publish, review, enrollment).
+ */
+export interface OrgEditing {
+  draft: import('../lib/cloud/orgCourses').OrgCourseDraft
+  base: string // e.g. /church/<org>/courses/<course>
+  crumbs: ReactNode
+  header?: ReactNode
+  footer?: ReactNode
+}
+function useDraftStore(o?: OrgEditing) {
+  const [, setTick] = useState(0)
+  useEffect(() => o?.draft.subscribe(() => setTick((t) => t + 1)), [o?.draft])
+  return o?.draft
+}
+
 /* ---------------- course editor ---------------- */
 
-export function CourseEditorPage() {
+export function CourseEditorPage({ org }: { org?: OrgEditing } = {}) {
   const { id = '' } = useParams()
   const nav = useNavigate()
-  const stored = useLiveQuery(() => db.courses.get(id), [id])
-  const lessons = useLiveQuery(() => db.lessons.where('courseId').equals(id).toArray(), [id])
-  const versions = useLiveQuery(() => db.courseVersions.where('courseId').equals(id).reverse().sortBy('version'), [id])
-  const { value: course, update, state, flush } = useDraft(stored ?? undefined, saveCourse)
+  const store = useDraftStore(org)
+  const localStored = useLiveQuery(() => (org ? undefined : db.courses.get(id)), [id, !!org])
+  const localLessons = useLiveQuery(() => (org ? [] : db.lessons.where('courseId').equals(id).toArray()), [id, !!org])
+  const versions = useLiveQuery(() => (org ? [] : db.courseVersions.where('courseId').equals(id).reverse().sortBy('version')), [id, !!org])
+  const stored = store ? store.course : localStored
+  const lessons = store ? store.lessons() : localLessons
+  const { value: course, update, state, flush: flushLocal } = useDraft(stored ?? undefined, store ? store.saveCourse : saveCourse)
+  const flush = async () => {
+    await flushLocal()
+    if (store) await store.flush()
+  }
+  const base = org ? org.base : `/learn/courses/${id}`
   const [problems, setProblems] = useState<string[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
   useEffect(() => {
@@ -99,7 +124,7 @@ export function CourseEditorPage() {
       </div>
     )
   }
-  if (course.role !== 'instructor') {
+  if (!org && course.role !== 'instructor') {
     return (
       <div className="page">
         <h1>{course.title}</h1>
@@ -144,75 +169,97 @@ export function CourseEditorPage() {
 
   return (
     <div className="page stack" style={{ maxWidth: 960 }}>
+      {org ? (
+        <>
+          <p className="small" style={{ margin: 0 }}>
+            {org.crumbs}
+          </p>
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0 }}>Edit course</h1>
+            <span className="spacer" />
+            <span className="muted small" aria-live="polite" data-status={store!.state === 'saved' && state === 'saved' ? 'saved' : store!.state}>
+              {store!.state === 'conflict' || store!.state === 'error' ? '' : state === 'saving' || store!.state === 'saving' ? 'Saving to the workspace…' : 'All changes saved to the workspace'}
+            </span>
+          </div>
+          {(store!.state === 'conflict' || store!.state === 'error') && (
+            <div className="notice error" role="alert">
+              {store!.error}
+            </div>
+          )}
+          {org.header}
+        </>
+      ) : (
+        <>
       <p className="small" style={{ margin: 0 }}>
-        <Link to="/learn">Learn</Link> / Course builder
-      </p>
-      <div className="row" style={{ flexWrap: 'wrap' }}>
-        <h1 style={{ margin: 0 }}>Edit course</h1>
-        <span className={`badge ${course.status === 'published' ? 'source' : ''}`} data-testid="course-status">
-          {course.status === 'draft' ? 'Draft (only on this device)' : course.status === 'published' ? `Published, version ${course.version}` : 'Archived'}
-        </span>
-        <span className="spacer" />
-        <span className="muted small" aria-live="polite" data-status={state}>
-          {state === 'saving' ? 'Saving…' : 'All changes saved'}
-        </span>
-      </div>
-      <div className="row" style={{ flexWrap: 'wrap' }}>
-        <button className="btn primary" onClick={publish}>
-          {course.version ? 'Publish an update' : 'Publish'}
-        </button>
-        <Link className="btn" to={`/learn/courses/${course.id}?preview=1`}>
-          <Eye size={16} aria-hidden /> Preview as a student
-        </Link>
-        <button
-          className="btn"
-          onClick={async () => {
-            await flush()
-            const fresh = (await db.courses.get(course.id))!
-            const copy = await duplicateCourse(fresh, await courseLessons(fresh))
-            toast('Copy made')
-            nav(`/learn/courses/${copy.id}/edit`)
-          }}
-        >
-          <Copy size={16} aria-hidden /> Duplicate
-        </button>
-        {course.status !== 'archived' ? (
-          <button className="btn" onClick={async () => (await flush(), setCourseStatus(course, 'archived'))}>
-            Archive
-          </button>
-        ) : (
-          <button className="btn" onClick={async () => (await flush(), setCourseStatus(course, course.version ? 'published' : 'draft'))}>
-            Restore from archive
-          </button>
-        )}
-        <button className="btn danger" onClick={() => setConfirmDelete(true)}>
-          <Trash2 size={16} aria-hidden /> Delete
-        </button>
-      </div>
-      {problems.length > 0 && (
-        <div className="notice warn" role="alert" data-testid="publish-problems">
-          <strong>Not published yet:</strong>
-          <ul style={{ margin: '4px 0 0' }}>
-            {problems.map((p) => (
-              <li key={p}>{p}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <p className="muted small" style={{ margin: 0 }}>
-        Drafts stay on this device. Publishing saves a version. To share a published course, download a course file and send it to your students; they add it with "Add a course from a file". Nothing is uploaded.
-      </p>
-      {latest && (
+          <Link to="/learn">Learn</Link> / Course builder
+        </p>
         <div className="row" style={{ flexWrap: 'wrap' }}>
-          <button className="btn" onClick={() => downloadBlob(new Blob([courseFileFrom(latest, 'students')], { type: 'application/json' }), `${slug(course.title)}-v${latest.version}.json`)}>
-            <Download size={16} aria-hidden /> Course file for students
+          <h1 style={{ margin: 0 }}>Edit course</h1>
+          <span className={`badge ${course.status === 'published' ? 'source' : ''}`} data-testid="course-status">
+            {course.status === 'draft' ? 'Draft (only on this device)' : course.status === 'published' ? `Published, version ${course.version}` : 'Archived'}
+          </span>
+          <span className="spacer" />
+          <span className="muted small" aria-live="polite" data-status={state}>
+            {state === 'saving' ? 'Saving…' : 'All changes saved'}
+          </span>
+        </div>
+        <div className="row" style={{ flexWrap: 'wrap' }}>
+          <button className="btn primary" onClick={publish}>
+            {course.version ? 'Publish an update' : 'Publish'}
           </button>
-          <button className="btn" onClick={() => downloadBlob(new Blob([courseFileFrom(latest, 'instructors')], { type: 'application/json' }), `${slug(course.title)}-v${latest.version}-instructors.json`)}>
-            <Download size={16} aria-hidden /> Course file for instructors (includes instructor notes)
+          <Link className="btn" to={`/learn/courses/${course.id}?preview=1`}>
+            <Eye size={16} aria-hidden /> Preview as a student
+          </Link>
+          <button
+            className="btn"
+            onClick={async () => {
+              await flush()
+              const fresh = (await db.courses.get(course.id))!
+              const copy = await duplicateCourse(fresh, await courseLessons(fresh))
+              toast('Copy made')
+              nav(`/learn/courses/${copy.id}/edit`)
+            }}
+          >
+            <Copy size={16} aria-hidden /> Duplicate
+          </button>
+          {course.status !== 'archived' ? (
+            <button className="btn" onClick={async () => (await flush(), setCourseStatus(course, 'archived'))}>
+              Archive
+            </button>
+          ) : (
+            <button className="btn" onClick={async () => (await flush(), setCourseStatus(course, course.version ? 'published' : 'draft'))}>
+              Restore from archive
+            </button>
+          )}
+          <button className="btn danger" onClick={() => setConfirmDelete(true)}>
+            <Trash2 size={16} aria-hidden /> Delete
           </button>
         </div>
+        {problems.length > 0 && (
+          <div className="notice warn" role="alert" data-testid="publish-problems">
+            <strong>Not published yet:</strong>
+            <ul style={{ margin: '4px 0 0' }}>
+              {problems.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="muted small" style={{ margin: 0 }}>
+          Drafts stay on this device. Publishing saves a version. To share a published course, download a course file and send it to your students; they add it with "Add a course from a file". Nothing is uploaded.
+        </p>
+        {latest && (
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <button className="btn" onClick={() => downloadBlob(new Blob([courseFileFrom(latest, 'students')], { type: 'application/json' }), `${slug(course.title)}-v${latest.version}.json`)}>
+              <Download size={16} aria-hidden /> Course file for students
+            </button>
+            <button className="btn" onClick={() => downloadBlob(new Blob([courseFileFrom(latest, 'instructors')], { type: 'application/json' }), `${slug(course.title)}-v${latest.version}-instructors.json`)}>
+              <Download size={16} aria-hidden /> Course file for instructors (includes instructor notes)
+            </button>
+          </div>
+        )}
+        </>
       )}
-
       <section className="card stack" aria-labelledby="details-h">
         <h2 id="details-h" style={{ margin: 0 }}>Course details</h2>
         <label className="stack" style={{ gap: 4 }}>
@@ -272,7 +319,13 @@ export function CourseEditorPage() {
             Sessions of attendance required
             <input type="number" min={0} max={100} style={{ width: 80 }} value={course.completion.attendance} onChange={(e) => update((c) => ({ ...c, completion: { ...c.completion, attendance: Math.max(0, +e.target.value || 0) } }))} />
           </label>
-          {course.completion.attendance > 0 && <span className="muted small">You record attendance on this device (below). Students' devices can't see it, so you issue certificates for this course yourself.</span>}
+          {course.completion.attendance > 0 && (
+            <span className="muted small">
+              {org
+                ? 'Instructors record attendance for each class session (Manage). It counts toward completion automatically.'
+                : "You record attendance on this device (below). Students' devices can't see it, so you issue certificates for this course yourself."}
+            </span>
+          )}
           <label className="row">
             <input type="checkbox" checked={course.certificate.enabled} onChange={(e) => update((c) => ({ ...c, certificate: { ...c.certificate, enabled: e.target.checked } }))} /> Offer a completion certificate
           </label>
@@ -313,7 +366,7 @@ export function CourseEditorPage() {
                 if (!l) return null
                 return (
                   <li key={lid} className="row" style={{ flexWrap: 'wrap' }}>
-                    <Link to={`/learn/courses/${course.id}/lessons/${lid}/edit`} style={{ fontWeight: 600 }}>
+                    <Link to={`${base}/lessons/${lid}/edit`} style={{ fontWeight: 600 }}>
                       {l.title}
                     </Link>
                     <span className={`badge ${l.status === 'published' ? 'source' : ''}`}>{l.status === 'draft' ? 'Draft' : l.status === 'published' ? 'Published' : 'Archived'}</span>
@@ -344,8 +397,8 @@ export function CourseEditorPage() {
                 onClick={async () => {
                   // save waiting edits first so the new lesson lands in the current outline and is not overwritten
                   await flush()
-                  const l = await addLesson((await db.courses.get(course.id))!, u.id)
-                  nav(`/learn/courses/${course.id}/lessons/${l.id}/edit`)
+                  const l = store ? await store.addLesson(u.id) : await addLesson((await db.courses.get(course.id))!, u.id)
+                  nav(`${base}/lessons/${l.id}/edit`)
                 }}
               >
                 <Plus size={14} aria-hidden /> Add lesson
@@ -355,55 +408,61 @@ export function CourseEditorPage() {
         ))}
       </section>
 
+      {org ? (
+        org.footer
+      ) : (
+        <>
       {versions && versions.length > 0 && (
-        <details>
-          <summary>Version history ({versions.length})</summary>
-          <ul className="list">
-            {versions.map((v) => (
-              <li key={v.id} className="row" style={{ flexWrap: 'wrap' }}>
-                <strong>Version {v.version}</strong>
-                <span className="muted small">
-                  published {new Date(v.publishedAt).toLocaleString()}, {v.lessons.length} lessons
-                </span>
-                <span className="spacer" />
-                <button className="btn sm" onClick={() => downloadBlob(new Blob([courseFileFrom(v, 'instructors')], { type: 'application/json' }), `${slug(course.title)}-v${v.version}-instructors.json`)}>
-                  Download
-                </button>
-                <button
-                  className="btn sm"
-                  onClick={async () => {
-                    const copy = await duplicateCourse(v.course, v.lessons, `${v.course.title} (from version ${v.version})`)
-                    nav(`/learn/courses/${copy.id}/edit`)
-                  }}
-                >
-                  Copy as a new draft
-                </button>
-              </li>
-            ))}
-          </ul>
-        </details>
+          <details>
+            <summary>Version history ({versions.length})</summary>
+            <ul className="list">
+              {versions.map((v) => (
+                <li key={v.id} className="row" style={{ flexWrap: 'wrap' }}>
+                  <strong>Version {v.version}</strong>
+                  <span className="muted small">
+                    published {new Date(v.publishedAt).toLocaleString()}, {v.lessons.length} lessons
+                  </span>
+                  <span className="spacer" />
+                  <button className="btn sm" onClick={() => downloadBlob(new Blob([courseFileFrom(v, 'instructors')], { type: 'application/json' }), `${slug(course.title)}-v${v.version}-instructors.json`)}>
+                    Download
+                  </button>
+                  <button
+                    className="btn sm"
+                    onClick={async () => {
+                      const copy = await duplicateCourse(v.course, v.lessons, `${v.course.title} (from version ${v.version})`)
+                      nav(`/learn/courses/${copy.id}/edit`)
+                    }}
+                  >
+                    Copy as a new draft
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+  
+        <AttendanceSection course={course} />
+  
+        <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete this course?">
+          <p>This deletes the course, all its lessons, and its version history from this device. Course files you already shared are not affected.</p>
+          <div className="row">
+            <button
+              className="btn danger"
+              onClick={async () => {
+                await flush()
+                await deleteCourse(course.id)
+                nav('/learn')
+              }}
+            >
+              Delete course
+            </button>
+            <button className="btn" onClick={() => setConfirmDelete(false)}>
+              Keep it
+            </button>
+          </div>
+        </Dialog>
+        </>
       )}
-
-      <AttendanceSection course={course} />
-
-      <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete this course?">
-        <p>This deletes the course, all its lessons, and its version history from this device. Course files you already shared are not affected.</p>
-        <div className="row">
-          <button
-            className="btn danger"
-            onClick={async () => {
-              await flush()
-              await deleteCourse(course.id)
-              nav('/learn')
-            }}
-          >
-            Delete course
-          </button>
-          <button className="btn" onClick={() => setConfirmDelete(false)}>
-            Keep it
-          </button>
-        </div>
-      </Dialog>
     </div>
   )
 }
@@ -512,12 +571,20 @@ function AttendanceSection({ course }: { course: Course }) {
 
 /* ---------------- lesson editor ---------------- */
 
-export function LessonEditorPage() {
+export function LessonEditorPage({ org }: { org?: OrgEditing } = {}) {
   const { id = '', lessonId = '' } = useParams()
   const nav = useNavigate()
-  const course = useLiveQuery(() => db.courses.get(id), [id])
-  const stored = useLiveQuery(() => db.lessons.get(lessonId), [lessonId])
-  const { value: lesson, update, state, flush } = useDraft(stored ?? undefined, saveLesson)
+  const store = useDraftStore(org)
+  const localCourse = useLiveQuery(() => (org ? undefined : db.courses.get(id)), [id, !!org])
+  const localStored = useLiveQuery(() => (org ? undefined : db.lessons.get(lessonId)), [lessonId, !!org])
+  const course = store ? store.course : localCourse
+  const stored = store ? (store.lesson(lessonId) ?? null) : localStored
+  const { value: lesson, update, state, flush: flushLocal } = useDraft(stored ?? undefined, store ? store.saveLesson : saveLesson)
+  const flush = async () => {
+    await flushLocal()
+    if (store) await store.flush()
+  }
+  const base = org ? org.base : `/learn/courses/${id}`
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [counts, setCounts] = useState(false)
   useEffect(() => {
@@ -527,7 +594,7 @@ export function LessonEditorPage() {
     if (lesson) document.title = `Edit lesson: ${lesson.title} · Arise Bible Study`
   }, [lesson])
   if (course === undefined || stored === undefined || !counts) return <Loading />
-  if (!course || !stored || !lesson || course.role !== 'instructor') {
+  if (!course || !stored || !lesson || (!org && course.role !== 'instructor')) {
     return (
       <div className="page">
         <h1>Lesson not found</h1>
@@ -540,15 +607,20 @@ export function LessonEditorPage() {
   return (
     <div className="page stack" style={{ maxWidth: 900 }}>
       <p className="small" style={{ margin: 0 }}>
-        <Link to="/learn">Learn</Link> / <Link to={`/learn/courses/${course.id}/edit`}>{course.title}</Link> / Lesson
+        {org ? org.crumbs : <Link to="/learn">Learn</Link>} / <Link to={`${base}/edit`}>{course.title}</Link> / Lesson
       </p>
       <div className="row" style={{ flexWrap: 'wrap' }}>
         <h1 style={{ margin: 0 }}>Edit lesson</h1>
         <span className="spacer" />
-        <span className="muted small" aria-live="polite" data-status={state}>
-          {state === 'saving' ? 'Saving…' : 'All changes saved'}
+        <span className="muted small" aria-live="polite" data-status={store ? (store.state === 'saved' && state === 'saved' ? 'saved' : store.state) : state}>
+          {store && (store.state === 'conflict' || store.state === 'error') ? '' : state === 'saving' || store?.state === 'saving' ? (store ? 'Saving to the workspace…' : 'Saving…') : store ? 'All changes saved to the workspace' : 'All changes saved'}
         </span>
       </div>
+      {store && (store.state === 'conflict' || store.state === 'error') && (
+        <div className="notice error" role="alert">
+          {store.error}
+        </div>
+      )}
       <div className="row" style={{ flexWrap: 'wrap' }}>
         <label className="row">
           <strong>Status</strong>
@@ -562,7 +634,7 @@ export function LessonEditorPage() {
           <strong>Opens on</strong>
           <input type="date" value={lesson.releaseOn ?? ''} onChange={(e) => set('releaseOn', e.target.value || undefined)} />
         </label>
-        <Link className="btn" to={`/learn/courses/${course.id}/lessons/${lesson.id}?preview=1`}>
+        <Link className="btn" to={`${base}/lessons/${lesson.id}?preview=1`}>
           <Eye size={16} aria-hidden /> Preview
         </Link>
         <button className="btn danger" onClick={() => setConfirmDelete(true)}>
@@ -570,7 +642,9 @@ export function LessonEditorPage() {
         </button>
       </div>
       <p className="muted small" id="status-help" style={{ margin: 0 }}>
-        Students see a lesson only when it is published and the course is published again. "Opens on" unlocks the lesson on each student's device from that date.
+        {org
+          ? 'Students see a lesson only when it is published and the course is published again. "Opens on" unlocks the lesson for students from that date.'
+          : `Students see a lesson only when it is published and the course is published again. "Opens on" unlocks the lesson on each student's device from that date.`}
       </p>
       <label className="stack" style={{ gap: 4 }}>
         <strong>Lesson title</strong>
@@ -605,19 +679,20 @@ export function LessonEditorPage() {
       </label>
       <QuizEditor quiz={lesson.quiz} onChange={(q) => set('quiz', q)} />
       <div>
-        <Link className="btn" to={`/learn/courses/${course.id}/edit`}>
+        <Link className="btn" to={`${base}/edit`}>
           Back to the course
         </Link>
       </div>
       <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete this lesson?">
-        <p>This removes the lesson from the course on this device. Published versions already shared are not affected.</p>
+        <p>{org ? 'This removes the lesson from the working copy. Published versions and students’ records are not affected.' : 'This removes the lesson from the course on this device. Published versions already shared are not affected.'}</p>
         <div className="row">
           <button
             className="btn danger"
             onClick={async () => {
               await flush()
-              await deleteLesson(course, lesson.id)
-              nav(`/learn/courses/${course.id}/edit`)
+              if (store) await store.deleteLesson(lesson.id)
+              else await deleteLesson(course, lesson.id)
+              nav(`${base}/edit`)
             }}
           >
             Delete lesson

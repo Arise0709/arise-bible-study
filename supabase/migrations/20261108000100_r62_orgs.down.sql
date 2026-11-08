@@ -9,7 +9,7 @@ begin
              'create_org', 'update_org', 'check_invite_authority', 'create_invitation', 'resend_invitation', 'revoke_invitation',
              'invitation_preview', 'accept_invitation', 'set_member_role', 'remove_member', 'set_my_member_settings', 'offer_ownership',
              'my_ownership_offers', 'accept_ownership', 'cancel_ownership_offer', 'delete_org', 'restore_org', 'my_deleted_orgs',
-             'orgs_blocking_account_deletion', 'student_copy', 'create_org_course', 'save_org_course_draft', 'set_org_course_options',
+             'orgs_blocking_account_deletion', 'student_copy', 'published_snapshot', 'create_org_course', 'save_org_course_draft', 'set_org_course_options',
              'publish_org_course', 'assign_instructor', 'enroll_self', 'enroll_members', 'withdraw_enrollment', 'update_enrollment_version',
              'refresh_completion', 'mark_lesson', 'set_last_lesson', 'claim_certificate', 'save_written_answer', 'grade_written_answer',
              'review_quiz_attempt', 'quiz_attempt_check', 'create_session', 'delete_session', 'record_attendance', 'save_group',

@@ -26,6 +26,7 @@ import {
   setLessonDone,
   shuffled,
   type CourseImport,
+  type QuizResult,
 } from '../lib/courses'
 import { ProgressBar } from './PlanPages'
 import { SaveOffline } from '../components/OfflinePacks'
@@ -702,7 +703,7 @@ export function LessonPage() {
   )
 }
 
-function PrimaryScripture({ osis }: { osis: string }) {
+export function PrimaryScripture({ osis }: { osis: string }) {
   const r = parseOsis(osis)
   const { data, error } = useAsync(async () => (r ? passageToText(await getPassage(r, 'KJV')) : ''), [osis])
   if (!r) return null
@@ -861,7 +862,7 @@ function QuizRunner({ course, lesson, quiz, attempts }: { course: Course; lesson
   )
 }
 
-function QuizForm({ quiz, attempt, answers, setAnswers, onSubmit }: { quiz: Quiz; attempt: Attempt; answers: Record<string, unknown>; setAnswers: (a: Record<string, unknown>) => void; onSubmit: () => void }) {
+export function QuizForm({ quiz, attempt, answers, setAnswers, onSubmit }: { quiz: Quiz; attempt: Pick<Attempt, 'id' | 'startedAt'>; answers: Record<string, unknown>; setAnswers: (a: Record<string, unknown>) => void; onSubmit: () => void }) {
   const questions = useMemo(() => (quiz.shuffle ? shuffled(quiz.questions, attempt.id) : quiz.questions), [quiz, attempt.id])
   const deadline = quiz.timeLimit > 0 ? attempt.startedAt + quiz.timeLimit * 60000 : 0
   const [now, setNow] = useState(Date.now())
@@ -910,7 +911,7 @@ function QuizForm({ quiz, attempt, answers, setAnswers, onSubmit }: { quiz: Quiz
   )
 }
 
-function QuestionInput({ q, value, onChange, seed }: { q: Question; value: unknown; onChange: (v: unknown) => void; seed: string }) {
+export function QuestionInput({ q, value, onChange, seed }: { q: Question; value: unknown; onChange: (v: unknown) => void; seed: string }) {
   switch (q.type) {
     case 'choice':
       return (
@@ -980,9 +981,10 @@ function answerText(q: Question): string {
   }
 }
 
-function QuizResultView({ quiz, attempt }: { quiz: Quiz; attempt: Attempt }) {
-  const g = gradeQuiz(quiz, attempt.answers)
-  const reveal = quiz.showAnswers === 'after-submit' || (quiz.showAnswers === 'after-pass' && attempt.passed)
+/** Results of a quiz. Church courses pass the server's grading (graded) and whether answers may be shown (reveal). */
+export function QuizResultView({ quiz, attempt, graded, reveal: revealGiven }: { quiz: Quiz; attempt: Pick<Attempt, 'answers' | 'score' | 'passed'>; graded?: QuizResult; reveal?: boolean }) {
+  const g = graded ?? gradeQuiz(quiz, attempt.answers)
+  const reveal = revealGiven ?? (quiz.showAnswers === 'after-submit' || (quiz.showAnswers === 'after-pass' && attempt.passed))
   return (
     <div className="stack" data-testid="quiz-result" role="status">
       <div className={`notice ${attempt.passed ? 'ok' : 'warn'}`}>
@@ -1003,7 +1005,7 @@ function QuizResultView({ quiz, attempt }: { quiz: Quiz; attempt: Attempt }) {
       )}
       <ol className="stack" style={{ paddingLeft: 20, margin: 0 }}>
         {quiz.questions.map((q) => {
-          const r = g.results.find((x) => x.id === q.id)!
+          const r = g.results.find((x) => x.id === q.id) ?? { id: q.id, auto: isAutoGraded(q), credit: 0, answered: false }
           return (
             <li key={q.id} className="small">
               <LinkedText text={q.prompt} />{' '}

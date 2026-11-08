@@ -300,6 +300,14 @@ const COURSE = {
   const keep = await student.c.from('org_enrollments').select('version, status').eq('id', E).single()
   check('publishing a revision does not change completed students\' records', keep.data?.version === 1 && keep.data?.status === 'completed', keep.data)
   check('both versions are kept', rows(await teacher.c.from('org_course_versions').select('version').eq('course_id', C)) === 2)
+  const COURSE_V3 = JSON.parse(JSON.stringify(COURSE_V2))
+  COURSE_V3.lessons.push({ ...COURSE_V3.lessons[1], id: 'l3', title: 'Unfinished draft', status: 'draft' })
+  COURSE_V3.course.units[0].lessonIds.push('l3')
+  const d3 = await teacher.c.from('org_course_drafts').select('rev').eq('course_id', C).single()
+  await teacher.c.rpc('save_org_course_draft', { cid: C, base_rev: d3.data.rev, content: COURSE_V3 })
+  await teacher.c.rpc('publish_org_course', { cid: C })
+  const v3 = (await teacher.c.from('org_course_versions').select('content').eq('course_id', C).eq('version', 3).single()).data?.content
+  check('publishing freezes only lessons marked Published, and trims the outline to them', v3?.lessons.length === 2 && JSON.stringify(v3.course.units[0].lessonIds) === '["l1","l2"]' && v3.course.version === 3, v3?.course.units)
   check('the student can still read the version they completed', rows(await student.c.from('org_course_releases').select('version').eq('course_id', C).eq('version', 1)) === 1)
 
   console.log('7. Groups and group studies')

@@ -988,6 +988,21 @@ begin
   return jsonb_build_object('course', content -> 'course', 'lessons', lessons);
 end $$;
 
+/** What publishing freezes: only lessons marked Published, and the outline trimmed to them (as for personal courses). */
+create function public.published_snapshot(content jsonb, v int) returns jsonb language sql immutable set search_path = '' as $$
+  with pub as (
+    select coalesce(jsonb_agg(l), '[]'::jsonb) as lessons, coalesce(array_agg(l ->> 'id'), '{}') as ids
+    from jsonb_array_elements(coalesce(content -> 'lessons', '[]')) l where l ->> 'status' = 'published'
+  )
+  select jsonb_build_object(
+    'course', (content -> 'course') || jsonb_build_object('status', 'published', 'version', v, 'units',
+      coalesce((select jsonb_agg(u || jsonb_build_object('lessonIds',
+        coalesce((select jsonb_agg(x) from jsonb_array_elements_text(coalesce(u -> 'lessonIds', '[]')) x where x = any (pub.ids)), '[]'::jsonb)))
+       from jsonb_array_elements(coalesce(content -> 'course' -> 'units', '[]')) u), '[]'::jsonb)),
+    'lessons', pub.lessons)
+  from pub
+$$;
+
 create function public.create_org_course(o uuid, content jsonb, source text default null) returns uuid language plpgsql security definer set search_path = '' as $$
 declare cid uuid;
 begin
@@ -1042,6 +1057,7 @@ declare
   d public.org_course_drafts%rowtype;
   rk int;
   v int;
+  snap jsonb;
 begin
   select * into c from public.org_courses where id = cid for update;
   if not found or not public.is_course_staff(cid) then raise exception 'Only this course''s instructors can publish it.' using errcode = '42501'; end if;
@@ -1051,8 +1067,10 @@ begin
   end if;
   select * into d from public.org_course_drafts where course_id = cid;
   v := c.published_version + 1;
-  insert into public.org_course_versions (course_id, version, org_id, content, notes, published_by) values (cid, v, c.org_id, d.content, public.clean(notes, 2000), public.me());
-  insert into public.org_course_releases (course_id, version, org_id, content) values (cid, v, c.org_id, public.student_copy(d.content));
+  snap := public.published_snapshot(d.content, v);
+  if jsonb_array_length(snap -> 'lessons') = 0 then raise exception 'Publish at least one lesson (lessons start as drafts).'; end if;
+  insert into public.org_course_versions (course_id, version, org_id, content, notes, published_by) values (cid, v, c.org_id, snap, public.clean(notes, 2000), public.me());
+  insert into public.org_course_releases (course_id, version, org_id, content) values (cid, v, c.org_id, public.student_copy(snap));
   update public.org_courses set status = 'published', published_version = v, updated_at = now() where id = cid;
   perform public.org_audit(c.org_id, 'course_published', cid, jsonb_build_object('version', v));
   return v;
@@ -1587,7 +1605,7 @@ begin
              'set_org_from_parent', 'response_stamp', 'create_org', 'update_org', 'check_invite_authority', 'create_invitation',
              'resend_invitation', 'revoke_invitation', 'invitation_preview', 'accept_invitation', 'set_member_role', 'remove_member',
              'set_my_member_settings', 'offer_ownership', 'my_ownership_offers', 'accept_ownership', 'cancel_ownership_offer', 'delete_org',
-             'restore_org', 'my_deleted_orgs', 'orgs_blocking_account_deletion', 'student_copy', 'create_org_course', 'save_org_course_draft',
+             'restore_org', 'my_deleted_orgs', 'orgs_blocking_account_deletion', 'student_copy', 'published_snapshot', 'create_org_course', 'save_org_course_draft',
              'set_org_course_options', 'publish_org_course', 'assign_instructor', 'enroll_self', 'enroll_members', 'withdraw_enrollment',
              'update_enrollment_version', 'refresh_completion', 'mark_lesson', 'set_last_lesson', 'claim_certificate', 'save_written_answer',
              'grade_written_answer', 'review_quiz_attempt', 'quiz_attempt_check', 'create_session', 'delete_session', 'record_attendance',
@@ -1598,7 +1616,7 @@ begin
     execute format('grant execute on function %s to service_role', f.sig);
     -- internal helpers stay closed to signed-in users; everything else checks its own permissions
     if f.proname not in ('org_audit', 'check_invite_authority', 'refresh_completion', 'set_org_from_parent', 'response_stamp',
-                         'orgs_blocking_account_deletion', 'student_copy') then
+                         'orgs_blocking_account_deletion', 'student_copy', 'published_snapshot') then
       execute format('grant execute on function %s to authenticated', f.sig);
     end if;
   end loop;
