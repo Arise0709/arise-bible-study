@@ -64,3 +64,32 @@ Only after the owner approves: add the same five variables for Production, redep
 retention period in Database > Backups (record it in `backup-and-recovery.md`).
 
 To switch accounts off at any time, remove `VITE_SUPABASE_URL` and redeploy; every device keeps its local copy.
+
+## 7. Release 6.2: church workspaces
+
+Do these for the **Preview** first, as in sections 2 to 5. Production only after the owner approves.
+
+1. **Database.** SQL Editor > New query. Paste and run `supabase/migrations/20261108000100_r62_orgs.sql`.
+   Then run this check. It should show `28`, `33`, and `0`:
+
+   ```sql
+   select (select count(*) from pg_tables where schemaname = 'public' and (tablename = 'orgs' or tablename like 'org\_%')) as tables,
+          (select count(*) from pg_policies where schemaname = 'public' and (tablename = 'orgs' or tablename like 'org\_%')) as read_rules,
+          (select count(*) from pg_tables where schemaname = 'public' and (tablename = 'orgs' or tablename like 'org\_%') and not rowsecurity) as tables_without_rules;
+   ```
+
+2. **Invitation emails (Resend).** Resend > API Keys > Create API key. Name `carter-study-bible-invites`,
+   permission **Sending access**, domain `carterstudybible.app`. Copy the key once (it starts with `re_`).
+3. **Vercel.** Settings > Environment Variables > add `RESEND_API_KEY` = that key, type **Secret**, for the same
+   environments as the other Supabase settings. Redeploy.
+   Without this key, invitations still work: the leader copies the link and sends it themselves.
+4. **Preview checks** (two devices, about 15 minutes):
+   1. Laptop: Account > Open church workspaces > Create a workspace (18+). It opens with you as Owner.
+   2. Settings: add a logo. Invitations: invite your second email as Pastor/Teacher. "Emailed to ..." appears.
+   3. Phone: open the email, sign in with that address, review, and accept. The workspace opens as Pastor/Teacher.
+   4. Laptop: Members shows the new person with their email; change their role; Activity lists each step.
+   5. Open the same invitation link again: it says it was already used.
+   6. Phone: My membership > Leave. Notes on the phone are unchanged.
+
+To switch workspaces off without touching accounts, run the undo file
+`supabase/migrations/20261108000100_r62_orgs.down.sql` after taking a backup (it deletes workspace data only).

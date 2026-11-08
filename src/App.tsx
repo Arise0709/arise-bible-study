@@ -10,7 +10,7 @@ import { AppStatusBanners } from './components/Offline'
 import { autoRequestPersistence } from './lib/dataSafety'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { BiblePage } from './pages/BiblePage'
-import { SyncBadge } from './components/SyncBadge'
+import { ChurchLink, SyncBadge } from './components/SyncBadge'
 
 import { DictionaryPage, KeyboardHelp, SavedStudiesPage, SearchPage, SettingsPage, SourcesPage } from './pages/OtherPages'
 
@@ -36,6 +36,11 @@ const CourseEditorPage = lazy(() => builder().then((m) => ({ default: m.CourseEd
 const LessonEditorPage = lazy(() => builder().then((m) => ({ default: m.LessonEditorPage })))
 // Accounts and sync load only on the account page (or for a browser that is already signed in).
 const AccountPage = lazy(() => import('./pages/AccountPage').then((m) => ({ default: m.AccountPage })))
+// Church workspaces (Release 6.2) load only when opened.
+const church = () => import('./pages/ChurchPages')
+const ChurchHome = lazy(() => church().then((m) => ({ default: m.ChurchHome })))
+const JoinPage = lazy(() => church().then((m) => ({ default: m.JoinPage })))
+const OrgPage = lazy(() => church().then((m) => ({ default: m.OrgPage })))
 
 const NAV = [
   { to: '/bible', label: 'Bible', icon: BookOpen },
@@ -140,6 +145,7 @@ function Shell() {
           <button className="iconbtn" onClick={() => setHelp(true)} aria-label="Help and shortcuts">
             <HelpCircle size={19} />
           </button>
+          <ChurchLink />
           <SyncBadge />
           <NavLink to="/settings" className="iconbtn" aria-label="Settings">
             <SettingsIcon size={19} />
@@ -174,6 +180,9 @@ function Shell() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route path="/church" element={<ChurchHome />} />
+          <Route path="/church/join" element={<JoinPage />} />
+          <Route path="/church/:orgId" element={<OrgPage />} />
           <Route path="/sources" element={<SourcesPage />} />
           <Route path="*" element={<div className="page"><h1>Page not found</h1><p><NavLink to="/bible">Open the Bible</NavLink></p></div>} />
         </Routes>

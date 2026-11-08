@@ -230,9 +230,38 @@ function SignedIn({ s }: { s: CloudState }) {
       {showMigration && <MigrationPanel />}
       {s.ownership === 'other' && <OtherOwner s={s} />}
       <Conflicts />
+      <ChurchCard />
       <Security s={s} />
       <YourData s={s} />
     </>
+  )
+}
+
+/** Church workspaces live on their own page; this card is the way in (and remembers an invitation waiting on this device). */
+function ChurchCard() {
+  let invite = false
+  try {
+    invite = !!localStorage.getItem('abs-pending-invite')
+  } catch {
+    /* ignore */
+  }
+  return (
+    <section className="card stack" data-testid="church-card">
+      <h2 style={{ margin: 0, fontSize: '1.15rem' }}>Church workspaces</h2>
+      <p style={{ margin: 0 }}>
+        Join your church's courses and group Bible studies, or set up a workspace for your church or ministry. Your personal study stays private.
+      </p>
+      {invite && (
+        <div className="notice info" role="status">
+          You have an invitation waiting.
+        </div>
+      )}
+      <div className="row">
+        <Link className={`btn ${invite ? 'primary' : ''}`} to={invite ? '/church/join' : '/church'}>
+          {invite ? 'Review the invitation' : 'Open church workspaces'}
+        </Link>
+      </div>
+    </section>
   )
 }
 

@@ -4,7 +4,9 @@
  * (the service key never reaches the browser).
  *
  * Checks: a valid session token, the same-site origin, the typed confirmation, the password again, and a
- * rate limit. Nothing is deleted unless all pass.
+ * rate limit. Nothing is deleted unless all pass. An owner of a church workspace that has other members must
+ * transfer ownership first. Workspaces the person owns alone are deleted with the account; in workspaces they
+ * only belong to, their membership ends and the church keeps its records with the name removed.
  */
 import { clientId, rateLimited, sameSite } from './_lib/guard.js'
 
@@ -40,6 +42,19 @@ export async function DELETE(request: Request) {
   })
   if (!check.ok) return json(403, { error: 'That password is not correct.' })
 
+  // A church workspace must never be left without an owner (Release 6.2). Older databases without workspaces skip this.
+  const admin = { apikey: service, authorization: `Bearer ${service}`, 'content-type': 'application/json' }
+  const owned = await fetch(`${url}/rest/v1/rpc/orgs_blocking_account_deletion`, { method: 'POST', headers: admin, body: JSON.stringify({ u: user.id }) })
+  if (owned.ok) {
+    const list = (await owned.json()) as { id: string; name: string }[]
+    if (list.length) {
+      return json(409, { error: `You own ${list.map((o) => `"${o.name}"`).join(', ')}, which other people belong to. Transfer ownership to an administrator first (workspace Settings), then delete your account. Nothing was removed.` })
+    }
+  }
+  // workspaces this person owns with nobody else in them go with the account
+  const soleOwned = await fetch(`${url}/rest/v1/org_members?user_id=eq.${encodeURIComponent(user.id)}&role=eq.owner&select=org_id`, { headers: admin })
+  const soleIds = soleOwned.ok ? ((await soleOwned.json()) as { org_id: string }[]).map((r) => r.org_id) : []
+
   const del = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(user.id)}`, {
     method: 'DELETE',
     headers: { apikey: service, authorization: `Bearer ${service}` },
@@ -50,6 +65,7 @@ export async function DELETE(request: Request) {
     const hint = del.status === 401 || del.status === 403 ? ' (the server is not allowed to delete accounts: check the service key setting)' : ''
     return json(502, { error: `The account could not be deleted (code ${del.status})${hint}. Nothing was removed. Try again later.` })
   }
+  if (soleIds.length) await fetch(`${url}/rest/v1/orgs?id=in.(${soleIds.join(',')})`, { method: 'DELETE', headers: admin }).catch(() => {})
   console.log(JSON.stringify({ event: 'account_deleted', at: new Date().toISOString() })) // no personal details in logs
   return json(200, { deleted: true })
 }
