@@ -44,7 +44,12 @@ export async function DELETE(request: Request) {
     method: 'DELETE',
     headers: { apikey: service, authorization: `Bearer ${service}` },
   })
-  if (!del.ok) return json(502, { error: 'The account could not be deleted. Nothing was removed. Try again later.' })
+  if (!del.ok) {
+    // status only, never keys or personal details; 401/403 here usually means the service key setting is wrong
+    console.log(JSON.stringify({ event: 'account_delete_failed', status: del.status }))
+    const hint = del.status === 401 || del.status === 403 ? ' (the server is not allowed to delete accounts: check the service key setting)' : ''
+    return json(502, { error: `The account could not be deleted (code ${del.status})${hint}. Nothing was removed. Try again later.` })
+  }
   console.log(JSON.stringify({ event: 'account_deleted', at: new Date().toISOString() })) // no personal details in logs
   return json(200, { deleted: true })
 }
