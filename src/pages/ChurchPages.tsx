@@ -56,6 +56,7 @@ import {
 import { CoursesTab } from './ChurchCourses'
 import { GroupsTab } from './ChurchGroups'
 import { AnnouncementsTab, SharedTab } from './ChurchShare'
+import { ReportsTab } from './ChurchReports'
 import { unreadCount } from '../lib/cloud/orgShare'
 
 /* ---------------- shared bits ---------------- */
@@ -1360,6 +1361,7 @@ export const ORG_TABS: { id: string; label: string; min: number; View: (p: { ctx
   { id: 'announcements', label: 'Announcements', min: 1, View: AnnouncementsTab },
   { id: 'shared', label: 'Shared', min: 1, View: SharedTab },
   { id: 'invitations', label: 'Invitations', min: 2, View: InvitationsTab },
+  { id: 'reports', label: 'Reports', min: 2, View: ReportsTab },
   { id: 'settings', label: 'Settings', min: 5, View: SettingsTab },
   { id: 'activity', label: 'Activity', min: 5, View: ActivityTab },
   { id: 'me', label: 'My membership', min: 1, View: MyMembershipTab },
