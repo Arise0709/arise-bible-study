@@ -15,7 +15,7 @@ begin
              'review_quiz_attempt', 'quiz_attempt_check', 'create_session', 'delete_session', 'record_attendance', 'save_group',
              'set_group_member', 'request_to_join_group', 'save_group_study', 'note_on_response', 'create_topic', 'moderate',
              'report_content', 'resolve_report', 'share_resource', 'update_shared_resource', 'revoke_shared_resource',
-             'approve_shared_resource', 'set_resource_editor', 'post_announcement', 'delete_announcement') loop
+             'approve_shared_resource', 'set_resource_editor', 'post_announcement', 'delete_announcement', 'org_report') loop
     execute format('drop function %s', f.sig);
   end loop;
 end $$;
@@ -29,7 +29,7 @@ drop table if exists
   public.org_courses, public.org_audit_events, public.org_ownership_transfers, public.org_invitations,
   public.org_member_contacts, public.org_members, public.orgs cascade;
 
-drop function if exists public.set_org_from_parent(), public.response_stamp(), public.can_see_member(uuid, uuid),
+drop function if exists public.my_visible_members(), public.my_staff_enrollments(), public.my_staff_courses(), public.my_enrollments(), public.set_org_from_parent(), public.response_stamp(), public.can_see_member(uuid, uuid),
   public.can_see_announcement(uuid), public.can_see_resource(uuid), public.can_see_group(uuid), public.is_group_leader(uuid),
   public.is_group_member(uuid), public.enrollment_staff(uuid), public.is_my_enrollment(uuid), public.my_enrollment(uuid),
   public.is_course_staff(uuid), public.org_audit(uuid, text, uuid, jsonb), public.org_rank(uuid), public.clean(text, int),

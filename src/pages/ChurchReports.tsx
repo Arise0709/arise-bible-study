@@ -7,8 +7,7 @@ import { Link } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import { Empty, ErrorBox, Loading, downloadBlob, slug, useAsync } from '../components/ui'
 import { rank } from '../lib/cloud/orgs'
-import { myTeaching, csv } from '../lib/cloud/orgCourses'
-import { myGroupRows } from '../lib/cloud/orgGroups'
+import { csv } from '../lib/cloud/orgCourses'
 import { workspaceReports, type CourseRow, type GroupRow } from '../lib/cloud/orgReports'
 import type { OrgCtx } from './ChurchPages'
 
@@ -17,15 +16,7 @@ const show = (v: number | null, suffix = '') => (v === null ? 'n/a' : `${v}${suf
 export function ReportsTab({ ctx }: { ctx: OrgCtx }) {
   const { org, me } = ctx
   const isAdmin = rank(me.role) >= 5
-  const data = useAsync(async () => {
-    const [r, teach, rows] = await Promise.all([workspaceReports(org.id), myTeaching(org.id), myGroupRows(org.id)])
-    const leads = new Set(rows.filter((x) => x.role === 'leader' && x.status === 'active').map((x) => x.group_id))
-    return {
-      ...r,
-      courses: r.courses.filter((c) => isAdmin || teach.has(c.id)),
-      groups: r.groups.filter((g) => isAdmin || leads.has(g.id)),
-    }
-  }, [org.id, isAdmin])
+  const data = useAsync(() => workspaceReports(org.id), [org.id]) // the database limits it to what this person may see
   if (data.loading && !data.data) return <Loading label="Preparing reports" />
   if (data.error) return <ErrorBox error={data.error} onRetry={data.reload} />
   const { courses, groups, generatedAt } = data.data!

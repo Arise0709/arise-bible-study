@@ -238,6 +238,7 @@ create table public.org_quiz_attempts (
   reviewed_at timestamptz
 );
 create index org_quiz_attempts_enr on public.org_quiz_attempts (enrollment_id, lesson_id);
+create index org_quiz_attempts_course on public.org_quiz_attempts (course_id);
 
 create table public.org_written_answers (
   id uuid primary key default gen_random_uuid(),
@@ -268,6 +269,7 @@ create table public.org_sessions (
   created_at timestamptz not null default now()
 );
 create index org_sessions_course on public.org_sessions (course_id, held_on);
+create index org_written_course on public.org_written_answers (course_id);
 
 create table public.org_attendance (
   session_id uuid not null references public.org_sessions (id) on delete cascade,
@@ -278,6 +280,7 @@ create table public.org_attendance (
   recorded_at timestamptz not null default now(),
   primary key (session_id, enrollment_id)
 );
+create index org_attendance_enr on public.org_attendance (enrollment_id);
 
 /** Course staff: administrators and owners, or an assigned instructor (instructor rank or above). */
 create function public.is_course_staff(cid uuid) returns boolean language sql stable security definer set search_path = '' as $$
@@ -299,6 +302,25 @@ $$;
 
 create function public.enrollment_staff(eid uuid) returns boolean language sql stable security definer set search_path = '' as $$
   select coalesce((select public.is_course_staff(e.course_id) from public.org_enrollments e where e.id = eid), false)
+$$;
+
+/**
+ * The same rules as is_course_staff / is_my_enrollment, as sets: a policy written "x in (select ...)" looks these
+ * up once per query instead of once per row, which keeps large courses fast.
+ */
+create function public.my_staff_courses() returns setof uuid language sql stable security definer set search_path = '' as $$
+  select c.id from public.org_courses c where public.org_rank(c.org_id) >= 5
+  union
+  select i.course_id from public.org_course_instructors i join public.org_courses c on c.id = i.course_id
+  where i.user_id = public.me() and public.org_rank(c.org_id) >= 3
+$$;
+create function public.my_staff_enrollments() returns setof uuid language sql stable security definer set search_path = '' as $$
+  select e.id from public.org_enrollments e where e.course_id in (select public.my_staff_courses())
+$$;
+create function public.my_enrollments() returns setof uuid language sql stable security definer set search_path = '' as $$
+  select e.id from public.org_enrollments e join public.org_members m on m.org_id = e.org_id and m.user_id = e.user_id and m.removed_at is null
+  join public.orgs g on g.id = e.org_id and g.deleted_at is null
+  where e.user_id = public.me()
 $$;
 
 /* ============================== groups ============================== */
@@ -401,6 +423,9 @@ create table public.org_discussion_posts (
   hidden_by uuid references auth.users (id) on delete set null
 );
 create index org_discussion_posts_topic on public.org_discussion_posts (topic_id, created_at);
+create index org_discussion_topics_group on public.org_discussion_topics (group_id);
+create index org_group_members_org on public.org_group_members (org_id, user_id);
+create index org_enrollments_org on public.org_enrollments (org_id);
 
 create table public.org_content_reports (
   id uuid primary key default gen_random_uuid(),
@@ -501,6 +526,21 @@ create function public.can_see_member(o uuid, u uuid) returns boolean language s
     or exists (select 1 from public.org_enrollments e where e.org_id = o and e.user_id = u and public.is_course_staff(e.course_id)))
 $$;
 
+/** The same rule as can_see_member, as a set for every workspace the caller belongs to (looked up once per query). */
+create function public.my_visible_members() returns table (org_id uuid, user_id uuid) language sql stable security definer set search_path = '' as $$
+  with mine as (
+    select m.org_id, public.role_rank(m.role) as r from public.org_members m join public.orgs g on g.id = m.org_id and g.deleted_at is null
+    where m.user_id = public.me() and m.removed_at is null)
+  select x.org_id, x.user_id from public.org_members x join mine on mine.org_id = x.org_id
+  where mine.r >= 5 or x.user_id = public.me() or (x.removed_at is null and public.role_rank(x.role) >= 2)
+  union
+  select b.org_id, b.user_id from public.org_group_members a join public.org_group_members b on b.group_id = a.group_id and b.status = 'active'
+  join mine on mine.org_id = a.org_id
+  where a.user_id = public.me() and a.status = 'active'
+  union
+  select e.org_id, e.user_id from public.org_enrollments e where e.user_id is not null and e.course_id in (select public.my_staff_courses())
+$$;
+
 /* ============================== row-level security ============================== */
 
 do $$
@@ -518,7 +558,7 @@ grant usage on sequence public.org_audit_events_id_seq to service_role;
 
 -- Reading. Writing goes through the functions further down unless a policy below allows it.
 create policy orgs_read on public.orgs for select to authenticated using (public.org_rank(id) >= 1);
-create policy members_read on public.org_members for select to authenticated using (public.can_see_member(org_id, user_id) and (removed_at is null or public.org_rank(org_id) >= 5));
+create policy members_read on public.org_members for select to authenticated using ((org_id, user_id) in (select v.org_id, v.user_id from public.my_visible_members() v) and (removed_at is null or public.org_rank(org_id) >= 5));
 create policy contacts_read on public.org_member_contacts for select to authenticated using (public.org_rank(org_id) >= 5 or user_id = public.me());
 create policy invitations_read on public.org_invitations for select to authenticated using (public.org_rank(org_id) >= 5 or (invited_by = public.me() and public.org_rank(org_id) >= 2));
 create policy transfers_read on public.org_ownership_transfers for select to authenticated using (public.org_rank(org_id) >= 5);
@@ -533,12 +573,12 @@ create policy releases_read on public.org_course_releases for select to authenti
   public.is_course_staff(course_id) or public.my_enrollment(course_id) is not null
   or exists (select 1 from public.org_courses c where c.id = course_id and c.status = 'published' and c.catalog and c.published_version = version and public.org_rank(c.org_id) >= 1));
 create policy instructors_read on public.org_course_instructors for select to authenticated using (public.org_rank(org_id) >= 1 and (public.is_course_staff(course_id) or public.org_rank(org_id) >= 4 or public.my_enrollment(course_id) is not null));
-create policy enrollments_read on public.org_enrollments for select to authenticated using ((user_id = public.me() and public.org_rank(org_id) >= 1) or public.is_course_staff(course_id));
-create policy progress_read on public.org_lesson_progress for select to authenticated using (public.is_my_enrollment(enrollment_id) or public.enrollment_staff(enrollment_id));
-create policy attempts_read on public.org_quiz_attempts for select to authenticated using (public.is_my_enrollment(enrollment_id) or public.is_course_staff(course_id));
-create policy written_read on public.org_written_answers for select to authenticated using (public.is_my_enrollment(enrollment_id) or public.is_course_staff(course_id));
-create policy sessions_read on public.org_sessions for select to authenticated using (public.is_course_staff(course_id) or public.my_enrollment(course_id) is not null);
-create policy attendance_read on public.org_attendance for select to authenticated using (public.is_my_enrollment(enrollment_id) or public.enrollment_staff(enrollment_id));
+create policy enrollments_read on public.org_enrollments for select to authenticated using (id in (select public.my_enrollments()) or course_id in (select public.my_staff_courses()));
+create policy progress_read on public.org_lesson_progress for select to authenticated using (enrollment_id in (select public.my_enrollments()) or enrollment_id in (select public.my_staff_enrollments()));
+create policy attempts_read on public.org_quiz_attempts for select to authenticated using (enrollment_id in (select public.my_enrollments()) or course_id in (select public.my_staff_courses()));
+create policy written_read on public.org_written_answers for select to authenticated using (enrollment_id in (select public.my_enrollments()) or course_id in (select public.my_staff_courses()));
+create policy sessions_read on public.org_sessions for select to authenticated using (course_id in (select public.my_staff_courses()) or public.my_enrollment(course_id) is not null);
+create policy attendance_read on public.org_attendance for select to authenticated using (enrollment_id in (select public.my_enrollments()) or enrollment_id in (select public.my_staff_enrollments()));
 
 create policy groups_read on public.org_groups for select to authenticated using (public.can_see_group(id));
 create policy group_members_read on public.org_group_members for select to authenticated using (
@@ -704,8 +744,8 @@ begin
   if uid is null then raise exception 'Sign in first.' using errcode = '28000'; end if;
   perform public.check_invite_authority(o, r, groups, courses);
   if addr !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'Enter a valid email address.'; end if;
-  if (select count(*) from public.org_invitations where invited_by = uid and created_at > now() - interval '1 day') >= 50
-     or (select count(*) from public.org_invitations where org_id = o and created_at > now() - interval '1 day') >= 200 then
+  if (select count(*) from public.org_invitations where invited_by = uid and created_at > now() - interval '1 day') >= 100
+     or (select count(*) from public.org_invitations where org_id = o and created_at > now() - interval '1 day') >= 300 then
     raise exception 'Too many invitations today. Try again tomorrow.';
   end if;
   -- one open invitation per person per workspace: a new one replaces the old link
@@ -729,7 +769,7 @@ begin
   end if;
   if inv.accepted_at is not null then raise exception 'This invitation was already accepted.'; end if;
   perform public.check_invite_authority(inv.org_id, inv.role, inv.group_ids, inv.course_ids);
-  if (select count(*) from public.org_invitations where invited_by = public.me() and created_at > now() - interval '1 day') >= 50 then
+  if (select count(*) from public.org_invitations where invited_by = public.me() and created_at > now() - interval '1 day') >= 100 then
     raise exception 'Too many invitations today. Try again tomorrow.';
   end if;
   update public.org_invitations set token_hash = sha256(convert_to(tok, 'UTF8')), expires_at = exp, revoked_at = null, revoked_by = null,
@@ -1593,6 +1633,56 @@ begin
   delete from public.org_announcements where id = aid;
 end $$;
 
+/* ============================== reports ============================== */
+
+/**
+ * Workspace reports in one call: permission is checked once, then counts are added up from saved activity.
+ * Administrators: every course and group. Instructors: courses they teach. Group leaders: groups they lead.
+ * Only counts and titles; never study content, personal notes, or anyone's private records.
+ */
+create function public.org_report(o uuid) returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare
+  r int := public.org_rank(o);
+  uid uuid := public.me();
+begin
+  if r < 2 then raise exception 'Reports are for leaders, instructors and administrators.' using errcode = '42501'; end if;
+  return jsonb_build_object(
+    'courses', coalesce((select jsonb_agg(x order by x ->> 'title') from (
+      select jsonb_build_object(
+        'id', c.id, 'title', c.title, 'status', c.status, 'version', c.published_version,
+        'enrolled', (select count(*) from public.org_enrollments e where e.course_id = c.id),
+        'active', (select count(*) from public.org_enrollments e where e.course_id = c.id and e.status = 'active'),
+        'completed', (select count(*) from public.org_enrollments e where e.course_id = c.id and e.status = 'completed'),
+        'withdrawn', (select count(*) from public.org_enrollments e where e.course_id = c.id and e.status = 'withdrawn'),
+        'lessons', coalesce((select sum(jsonb_array_length(coalesce(u -> 'lessonIds', '[]'))) from public.org_course_versions v, jsonb_array_elements(v.content -> 'course' -> 'units') u
+                             where v.course_id = c.id and v.version = c.published_version), 0),
+        'progress', (select count(*) from public.org_lesson_progress p join public.org_enrollments e on e.id = p.enrollment_id where e.course_id = c.id and e.status <> 'withdrawn'),
+        'quizAttempts', (select count(*) from public.org_quiz_attempts a where a.course_id = c.id),
+        'avgBestScore', (select round(avg(m)) from (select max(a.score) m from public.org_quiz_attempts a where a.course_id = c.id group by a.enrollment_id) z),
+        'written', (select count(*) from public.org_written_answers w where w.course_id = c.id),
+        'writtenGraded', (select count(*) from public.org_written_answers w where w.course_id = c.id and w.graded_at is not null),
+        'sessions', (select count(*) from public.org_sessions s where s.course_id = c.id),
+        'attPresent', (select count(*) from public.org_attendance a join public.org_sessions s on s.id = a.session_id where s.course_id = c.id and a.status in ('present', 'late')),
+        'attTotal', (select count(*) from public.org_attendance a join public.org_sessions s on s.id = a.session_id where s.course_id = c.id)
+      ) x
+      from public.org_courses c
+      where c.org_id = o and (r >= 5 or (r >= 3 and exists (select 1 from public.org_course_instructors i where i.course_id = c.id and i.user_id = uid)))
+    ) q), '[]'::jsonb),
+    'groups', coalesce((select jsonb_agg(x order by x ->> 'name') from (
+      select jsonb_build_object(
+        'id', g.id, 'name', g.name,
+        'members', (select count(*) from public.org_group_members m where m.group_id = g.id and m.status = 'active' and m.role = 'member'),
+        'studiesAssigned', (select count(*) from public.org_group_studies s where s.group_id = g.id and s.status <> 'draft'),
+        'submissions', (select count(*) from public.org_group_responses x join public.org_group_studies s on s.id = x.study_id where s.group_id = g.id and x.status = 'submitted'),
+        'posts', (select count(*) from public.org_discussion_posts p join public.org_discussion_topics t on t.id = p.topic_id where t.group_id = g.id)
+      ) x
+      from public.org_groups g
+      where g.org_id = o and g.archived_at is null and (r >= 5 or exists (
+        select 1 from public.org_group_members m where m.group_id = g.id and m.user_id = uid and m.role = 'leader' and m.status = 'active'))
+    ) q), '[]'::jsonb),
+    'generatedAt', now());
+end $$;
+
 /* ============================== function permissions ============================== */
 
 do $$
@@ -1611,7 +1701,8 @@ begin
              'grade_written_answer', 'review_quiz_attempt', 'quiz_attempt_check', 'create_session', 'delete_session', 'record_attendance',
              'save_group', 'set_group_member', 'request_to_join_group', 'save_group_study', 'note_on_response', 'create_topic', 'moderate',
              'report_content', 'resolve_report', 'share_resource', 'update_shared_resource', 'revoke_shared_resource',
-             'approve_shared_resource', 'set_resource_editor', 'post_announcement', 'delete_announcement') loop
+             'approve_shared_resource', 'set_resource_editor', 'post_announcement', 'delete_announcement',
+             'my_staff_courses', 'my_staff_enrollments', 'my_enrollments', 'my_visible_members', 'org_report') loop
     execute format('revoke all on function %s from public, anon, authenticated', f.sig);
     execute format('grant execute on function %s to service_role', f.sig);
     -- internal helpers stay closed to signed-in users; everything else checks its own permissions
